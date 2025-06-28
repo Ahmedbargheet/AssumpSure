@@ -1,9 +1,9 @@
 # AssumpSure
 
-![License: GPL-3](https://img.shields.io/badge/license-GPL--3-blue.svg) ![Repo Status](https://img.shields.io/badge/status-active-brightgreen.svg) <!-- GitHub downloads (approximate) -->
-![GitHub all releases](https://img.shields.io/github/downloads/Ahmedbargheet/AssumpSure/total)
+![License: GPL-3](https://img.shields.io/badge/license-GPL--3-blue.svg) ![Repo Status](https://img.shields.io/badge/status-active-brightgreen.svg)
 
 
+<img align="right" src="/Users/ahmedbargheet/Downloads/bitmap-Photoroom.png" width=300> 
 **AssumpSure** is a user-friendly R Shiny application that helps researchers validate statistical assumptions and choose the correct tests before running analyses.
 
 ---
@@ -12,9 +12,9 @@
 
 Misused statistical tests due to overlooked assumptions can undermine scientific findings. **AssumpSure** ensures your analyses are:
 
-- **Valid** — based on the correct model for your data type
-- **Transparent** — includes assumption diagnostics and guidance
-- **Reproducible** — outputs ready to share with peers or reviewers
+- **Valid**: based on the correct model for your data type
+- **Transparent**: includes assumption diagnostics and guidance
+- **Reproducible**: outputs ready to share with peers or reviewers
 
 ---
 
@@ -80,5 +80,3 @@ AssumpSure::launch_app()
 
 - Use **long format**: one row per subject/timepoint (see sample CSV included with the app)
 - For longitudinal studies, name your time variable exactly ***timepoint***
-
-
