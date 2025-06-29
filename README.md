@@ -8,7 +8,6 @@
 
 
 ## 🎯 Purpose
-
 Misused statistical tests due to overlooked assumptions can undermine scientific findings. **AssumpSure** ensures your analyses are:
 
 - **Valid**: based on the correct model for your data type
