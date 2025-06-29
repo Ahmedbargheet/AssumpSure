@@ -1,10 +1,35 @@
 Package: AssumpSure
-Title: Assumption Checking and Statistical Test Guidance App
-Version: 0.1.0
+Title: Statistical Test Assumption Checking and Statistical Test Guidance App
+Version: 1.0.0
 Authors@R: 
     person("Ahmed", "Bargheet", , "ahmed.bargheet@yahoo.com", role = c("aut", "cre"))
-Description: A Shiny app to check statistical assumptions and guide test selection.
+Description: A Shiny application to assess statistical assumptions and guide users 
+    toward appropriate tests. Designed for researchers with minimal statistical training. 
+    Provides diagnostics, plots, and test recommendations for a wide range of analyses.
 License: GPL-3.0
+Imports: 
+    shiny,
+    shinyjs,
+    shinyBS,
+    bslib,
+    htmltools,
+    fontawesome,
+    tidyverse,
+    rstatix,
+    ggpubr,
+    knitr,
+    compositions,
+    car,
+    correlation,
+    MVN,
+    performance,
+    bestNormalize,
+    lmerTest,
+    MASS,
+    nnet,
+    broom,
+    DT,
+    sjPlot
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.2
