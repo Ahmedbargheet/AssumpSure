@@ -843,7 +843,7 @@ ui <- navbarPage(
 
         icon("file-csv", class = "fa-2x", style = "color: #3A9BB2; margin-bottom: 10px;"),
         h5("Sample Data for Testing", style = "margin-bottom: 10px; font-weight: 600;"),
-        a(href = "https://github.com/yourusername/yourrepo/blob/main/sample_data.csv ", # correct
+        a(href = "https://github.com/Ahmedbargheet/AssumpSure/tree/main/vignettes/data/infants.csv", # correct
           "Download Sample Data (CSV)",
           target = "_blank",
           style = "font-size: 16px; text-decoration: none; color: #3A9BB2; font-weight: 500;"
@@ -980,16 +980,13 @@ ui <- navbarPage(
       hr(),
 
       # Contact Info
-      h4(icon("envelope", style = "margin-right: 8px; color: #E3A599;"), "Need Help?",
-         style = "color: #2c3e50; font-weight: 600;"),
-
-      p("For feedback, questions, or bug reports, please contact us at:",
-        style = "color: #444;"),
-
-      p(
-        a("example@example.com", href = "mailto:example@example.com", style = "color: #3A9BB2; text-decoration: underline;"),
-        style = "text-align: center; margin-top: 10px;"
-      ),
+  h4(icon("envelope", style = "margin-right: 8px; color: #E3A599;"), "Need Help?",
+     style = "color: #2c3e50; font-weight: 600;"),
+  
+  p(
+    HTML('For feedback, questions, or bug reports, please contact us <a href="mailto:ahmed.bargheet@yahoo.com" style="color: #3A9BB2; text-decoration: underline;">HERE</a>.'),
+    style = "color: #444; text-align: left; margin-top: 10px;"
+  ),
 
       div(
         style = "text-align: center; margin-top: 20px; font-size: 0.9em; color: #666;",
@@ -998,7 +995,7 @@ ui <- navbarPage(
 
       div(
         style = "text-align: center; margin-top: 10px;",
-        a(href = "https://github.com/yourusername/yourrepo ", target = "_blank", # correct
+        a(href = "https://github.com/Ahmedbargheet/AssumpSure", target = "_blank", # correct
           icon("github", style = "font-size: 24px; color: #2c3e50;"),
           " Visit on GitHub",
           style = "text-decoration: none; color: #2c3e50;"
