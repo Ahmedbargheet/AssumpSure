@@ -3,8 +3,8 @@
 ![License: GPL-3](https://img.shields.io/badge/license-GPL--3-blue.svg) ![Repo Status](https://img.shields.io/badge/status-active-brightgreen.svg)
 
 ## 🎯 Purpose
-**AssumpSure** is a user-friendly R Shiny application that helps researchers validate statistical assumptions and choose the correct tests before running analyses.
 <img align="right" src="inst/app/www/logo.png" width="250" style="margin-top:40px;">
+**AssumpSure** is a user-friendly R Shiny application that helps researchers validate statistical assumptions and choose the correct tests before running analyses.
 
 Misused statistical tests due to overlooked assumptions can undermine scientific findings. **AssumpSure** ensures your analyses are:
 
