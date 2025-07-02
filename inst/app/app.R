@@ -38,257 +38,224 @@ ui <- navbarPage(
 
   theme = bslib::bs_theme(
     version = 5,
-    bootswatch = "minty",  # Optional: Choose another or leave NULL
-    primary = "#2c3e50",    # Navbar background color
-    navbar_bg = "#2c3e50",  # Background (alternative syntax)
-    navbar_fg = "white",    # Text color
+    bootswatch = "minty",  
+    primary = "#2c3e50",    
+    navbar_bg = "#2c3e50",  
+    navbar_fg = "white",    
     base_font = bslib::font_google("Open Sans"),
     heading_font = bslib::font_google("Open Sans"),
-    nav_link_padding_x = "1.5rem",  # this adjusts horizontal spacing
+    nav_link_padding_x = "1.5rem",  
     nav_link_font_weight = 500
   ),
-  useShinyjs(),
-
-  tags$head(
-    htmltools::htmlDependency("font-awesome", "6.1.1",
-                              src = c(href = "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.1.1/"),
-                              stylesheet = "css/all.min.css"
+  header = tagList(
+    useShinyjs(),
+    tags$head(
+      htmltools::htmlDependency("font-awesome", "6.1.1",
+                                src = c(href = "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.1.1/"),
+                                stylesheet = "css/all.min.css"
+      )
+    ),
+    tags$head(
+      tags$style(HTML("
+        .tooltip-inner {
+          max-width: 350px !important;
+          min-width: 220px !important;
+          white-space: pre-line !important;
+          font-size: 15px;
+          text-align: left;
+          word-break: break-word;
+        }
+        .btn-primary {
+          background-color: #9EC2D1 !important;
+          border-color: black !important;
+          color: black !important;
+        }
+        .btn-success {
+          background-color: #F2E099 !important;
+          border-color: black !important;
+          color: black !important;
+        }
+        .btn-warning {
+          background-color: #3A9BB2 !important;
+          border-color: black !important;
+          color: black !important;
+        }
+        .btn-info {
+          background-color: #E3A599 !important;
+          border-color: black !important;
+          color: black !important;
+        }
+      "))
+    ),
+    # Check box
+    tags$head(
+      tags$style(HTML("
+      input[type=\"checkbox\"] {
+        border: 1px solid black !important;
+      }
+    "))
+    ),
+    # Browse button
+    tags$head(
+      tags$style(HTML("
+      .shiny-input-container .btn-default {
+        border: 1px solid black !important;
+        background-color: #2c3e50 !important;
+        color: white !important;
+        padding: 8px 16px !important;
+        font-size: 14px !important;
+        border-radius: 5px !important;
+      }
+    "))
+    ),
+    # Download buttons
+    tags$head(
+      tags$style(HTML("
+      .shiny-download-link.btn {
+        border: 1px solid black !important;
+        background-color: white !important;
+        color: black !important;
+        padding: 8px 16px !important;
+        font-size: 16px !important;
+        border-radius: 5px !important;
+      }
+      /* Optional: on hover */
+      .shiny-download-link.btn:hover {
+        background-color: #f2f2f2 !important;
+        color: black !important;
+      }
+    "))
+    ),
+    # Run Selected option buttons
+    tags$head(
+      tags$style(HTML("
+      #run_posthoc.btn {
+        border: 1px solid black !important;
+        background-color: white !important;
+        font-weight: 600;
+        color: black !important;
+        padding: 8px 16px !important;
+        font-size: 16px !important;
+        border-radius: 5px !important;
+        transition: all 0.2s ease-in-out;
+      }
+      #run_posthoc.btn:hover {
+        background-color: #f2f2f2 !important;
+        color: black !important;
+      }
+    "))
+    ),
+    # Plot Boxplot
+    tags$head(
+      tags$style(HTML("
+      .btn-plot {
+        background-color: white !important;
+        border: 1px solid black !important;
+        color: black !important;
+        font-weight: 600;
+        padding: 8px 16px;
+        border-radius: 5px;
+        transition: all 0.2s ease-in-out;
+      }
+      .btn-plot:hover {
+        background-color: #e8f4f7 !important;
+        color: #2c3e50 !important;
+      }
+    "))
+    ),
+    tags$head(
+      tags$script(HTML("
+      document.addEventListener('DOMContentLoaded', function () {
+        var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle=\"tooltip\"]'))
+        var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+          return new bootstrap.Tooltip(tooltipTriggerEl)
+        })
+      });
+    "))
+    ),
+    tags$head(
+      tags$script(HTML("
+      Shiny.addCustomMessageHandler('reinit-tooltips', function(message) {
+        var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle=\"tooltip\"]'));
+        tooltipTriggerList.map(function(el) {
+          return new bootstrap.Tooltip(el);
+        });
+      });
+      document.addEventListener('DOMContentLoaded', function () {
+        var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle=\"tooltip\"]'));
+        tooltipTriggerList.map(function(el) {
+          return new bootstrap.Tooltip(el);
+        });
+      });
+    "))
+    ),
+    tags$head(
+      tags$style(HTML("
+      /* Custom Tab Colors */
+      .nav-tabs > li > a[data-value='Dependent Variable Normality'] {
+        background-color: #3A9BB2 !important;
+        color: black !important;
+        border-color: black !important;
+      }
+      .nav-tabs > li > a[data-value='Test Result'] {
+        background-color: #F2E099 !important;
+        color: black !important;
+        border-color: black !important;
+      }
+      .nav-tabs > li > a[data-value='Assumptions'] {
+        background-color: #9EC2D1 !important;
+        color: black !important;
+        border-color: black !important;
+      }
+      .nav-tabs > li > a[data-value='Effect Plot'] {
+        background-color: #E3A599 !important;
+        color: black !important;
+        border-color: black !important;
+      }
+      /* Highlight Active Tab with Border */
+      .nav-tabs .nav-item.show .nav-link,
+      .nav-tabs .nav-link.active {
+      border-top: 3px solid #2c3e50 !important; /* Same as your navbar color */}
+    "))
+    ),
+    tags$head(
+      tags$style(HTML("
+        /* Center-align the entire navbar */
+        .navbar {
+          display: flex;
+          justify-content: center; /* Centers the content horizontally */
+          align-items: center; /* Vertically centers the content */
+        }
+        /* Adjust spacing between main tabs */
+        .navbar-nav .nav-item {
+          margin-right: 15px !important; /* Space between main tabs */
+        }
+        /* Remove left margin from the first tab */
+        .navbar-nav .nav-item:first-child {
+          margin-left: -80px !important; /* Adjust distance between app name and Welcome */
+        }
+        .navbar-brand {
+        margin-right: 200px !important; /* Adjust as needed */
+        }
+      "))
     )
   ),
 
-  tags$head(
-    tags$style(HTML("
-      .tooltip-inner {
-        max-width: 350px !important;
-        min-width: 220px !important;
-        white-space: pre-line !important;
-        font-size: 15px;
-        text-align: left;
-        word-break: break-word;
-      }
-
-      .btn-primary {
-        background-color: #9EC2D1 !important;
-        border-color: black !important;
-        color: black !important;
-      }
-
-      .btn-success {
-        background-color: #F2E099 !important;
-        border-color: black !important;
-        color: black !important;
-      }
-
-      .btn-warning {
-        background-color: #3A9BB2 !important;
-        border-color: black !important;
-        color: black !important;
-      }
-
-      .btn-info {
-        background-color: #E3A599 !important;
-        border-color: black !important;
-        color: black !important;
-      }
-
-    "))
-  ),
-
-  # Check box
-  tags$head(
-    tags$style(HTML("
-    input[type=\"checkbox\"] {
-      border: 1px solid black !important;
-    }
-  "))
-  ),
-
-  # Browse button
-  tags$head(
-    tags$style(HTML("
-    .shiny-input-container .btn-default {
-      border: 1px solid black !important;
-      background-color: #2c3e50 !important;
-      color: white !important;
-      padding: 8px 16px !important;
-      font-size: 14px !important;
-      border-radius: 5px !important;
-    }
-  "))
-  ),
-
-
-  # Download buttons
-  tags$head(
-    tags$style(HTML("
-    .shiny-download-link.btn {
-      border: 1px solid black !important;
-      background-color: white !important;
-      color: black !important;
-      padding: 8px 16px !important;
-      font-size: 16px !important;
-      border-radius: 5px !important;
-    }
-
-    /* Optional: on hover */
-    .shiny-download-link.btn:hover {
-      background-color: #f2f2f2 !important;
-      color: black !important;
-    }
-  "))
-  ),
-
-
-  # Run Selected option buttons
-  tags$head(
-    tags$style(HTML("
-    #run_posthoc.btn {
-      border: 1px solid black !important;
-      background-color: white !important;
-      font-weight: 600;
-      color: black !important;
-      padding: 8px 16px !important;
-      font-size: 16px !important;
-      border-radius: 5px !important;
-      transition: all 0.2s ease-in-out;
-    }
-
-    #run_posthoc.btn:hover {
-      background-color: #f2f2f2 !important;
-      color: black !important;
-    }
-  "))
-  ),
-
-  # Plot Boxplot
-  tags$head(
-    tags$style(HTML("
-    .btn-plot {
-      background-color: white !important;
-      border: 1px solid black !important;
-      color: black !important;
-      font-weight: 600;
-      padding: 8px 16px;
-      border-radius: 5px;
-      transition: all 0.2s ease-in-out;
-    }
-    .btn-plot:hover {
-      background-color: #e8f4f7 !important;
-      color: #2c3e50 !important;
-    }
-  "))
-  ),
-
-
-
-
-
-
-  tags$head(
-    tags$script(HTML("
-    document.addEventListener('DOMContentLoaded', function () {
-      var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle=\"tooltip\"]'))
-      var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
-        return new bootstrap.Tooltip(tooltipTriggerEl)
-      })
-    });
-  "))
-  ),
-
-  tags$head(
-    tags$script(HTML("
-    Shiny.addCustomMessageHandler('reinit-tooltips', function(message) {
-      var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle=\"tooltip\"]'));
-      tooltipTriggerList.map(function(el) {
-        return new bootstrap.Tooltip(el);
-      });
-    });
-
-    document.addEventListener('DOMContentLoaded', function () {
-      var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle=\"tooltip\"]'));
-      tooltipTriggerList.map(function(el) {
-        return new bootstrap.Tooltip(el);
-      });
-    });
-  "))
-  )
-  ,
-
-
-  tags$head(
-    tags$style(HTML("
-    /* Custom Tab Colors */
-    .nav-tabs > li > a[data-value='Dependent Variable Normality'] {
-      background-color: #3A9BB2 !important;
-      color: black !important;
-      border-color: black !important;
-    }
-    .nav-tabs > li > a[data-value='Test Result'] {
-      background-color: #F2E099 !important;
-      color: black !important;
-      border-color: black !important;
-    }
-    .nav-tabs > li > a[data-value='Assumptions'] {
-      background-color: #9EC2D1 !important;
-      color: black !important;
-      border-color: black !important;
-    }
-    .nav-tabs > li > a[data-value='Effect Plot'] {
-      background-color: #E3A599 !important;
-      color: black !important;
-      border-color: black !important;
-    }
-
-    /* Highlight Active Tab with Border */
-    .nav-tabs .nav-item.show .nav-link,
-    .nav-tabs .nav-link.active {
-    border-top: 3px solid #2c3e50 !important; /* Same as your navbar color */}
-  "))
-  ),
-
-  tags$head(
-    tags$style(HTML("
-      /* Center-align the entire navbar */
-      .navbar {
-        display: flex;
-        justify-content: center; /* Centers the content horizontally */
-        align-items: center; /* Vertically centers the content */
-      }
-
-      /* Adjust spacing between main tabs */
-      .navbar-nav .nav-item {
-        margin-right: 15px !important; /* Space between main tabs */
-      }
-
-      /* Remove left margin from the first tab */
-      .navbar-nav .nav-item:first-child {
-        margin-left: -80px !important; /* Adjust distance between app name and Welcome */
-      }
-      .navbar-brand {
-      margin-right: -250px !important; /* Adjust as needed */
-      }
-    "))
-  ),
-
+  # Navigation panels start here
   tabPanel(
     title = tagList(icon("home"), "Welcome"),
     bslib::page_fillable(
       fillable = TRUE,
       padding = 3,
       style = "background-color: #f8f9fc; font-family: 'Segoe UI', sans-serif;",
-
       # Main Content Card
       div(
         style = "margin-top: 20px; width: 98vw; padding: 1rem;",
-
         div(
           class = "card shadow-lg p-4",
           style = "border-radius: 20px; background-color: white; box-shadow: 0 6px 20px rgba(0,0,0,0.05);",
-
-          #h1("AssumpSure", style = "font-weight: 700; color: #2c3e50; text-align: center; margin-bottom: 15px; letter-spacing: 1px;"),
           h2(strong("Guiding rigorous statistical practice from start to finish"),
              style = "text-align: center; color: #2c3e50; margin-bottom: 30px;"),
-
           # Three-column feature cards
           fluidRow(
             column(
@@ -297,34 +264,29 @@ ui <- navbarPage(
                 style = "text-align: center; padding: 20px; border-radius: 15px; background: #e8f4f7; transition: transform 0.2s; box-shadow: 0 4px 10px rgba(0,0,0,0.05); cursor: pointer; height: 200px;",
                 onmouseover = "this.style.transform='scale(1.03)';",
                 onmouseout = "this.style.transform='scale(1)';",
-
                 icon("clipboard-check", class = "fa-3x", style = "color: #3A9BB2; margin-bottom: 15px;"),
                 h5("Assumption Clarity", style = "font-weight: 600; color: #2c3e50;"),
                 p("Automatically validate and interpret statistical assumptions to ensure accurate and reliable test results.",
                   style = "color: #666;")
               )
             ),
-
             column(
               4,
               div(
                 style = "text-align: center; padding: 20px; border-radius: 15px; background: #f0f7fb; transition: transform 0.2s; box-shadow: 0 4px 10px rgba(0,0,0,0.05); cursor: pointer; height: 200px;",
                 onmouseover = "this.style.transform='scale(1.03)';",
                 onmouseout = "this.style.transform='scale(1)';",
-
                 icon("file-lines", class = "fa-3x", style = "color: #3D9DB3; margin-bottom: 15px;"),
                 h5("Report-Ready Outputs", style = "font-weight: 600; color: #2c3e50;"),
                 p("Download polished results and assumption plots to support transparent reporting and justify test selection.", style = "color: #666;")
               )
             ),
-
             column(
               4,
               div(
                 style = "text-align: center; padding: 20px; border-radius: 15px; background: #fdf7f4; transition: transform 0.2s; box-shadow: 0 4px 10px rgba(0,0,0,0.05); cursor: pointer; height: 200px;",
                 onmouseover = "this.style.transform='scale(1.03)';",
                 onmouseout = "this.style.transform='scale(1)';",
-
                 icon("shapes", class = "fa-3x", style = "color: #E3A599; margin-bottom: 15px;"),
                 h5("Broad Statistical Support", style = "font-weight: 600; color: #2c3e50;"),
                 p("From t-tests to mixed models, AssumpSure covers many statistical tools used in research.",
@@ -332,23 +294,18 @@ ui <- navbarPage(
               )
             )
           ),
-
           hr(style = "margin: 30px 0;"),
-
           div(
             style = "background: linear-gradient(to right, #eaf4f9, #f5fbff); padding: 20px; border-radius: 15px;",
             h4(icon("info-circle", style = "margin-right: 8px;"), "Why AssumpSure?", style = "font-weight: 600; color: #2c3e50; display: inline-block;"),
             p("Many researchers misuse statistical tests by overlooking or misinterpreting key assumptions, which can lead to invalid conclusions. AssumpSure guides users through assumption checks to ensure analyses are statistically sound, transparent, and ready for publication.", style = "color: #444; margin-top: 10px;
               font-size: 17px;")
           ),
-
           hr(style = "margin: 30px 0;"),
-
           h4(icon("users", style = "margin-right: 8px;"), "Who Can Use This App",
              style = "font-weight: 600; color: #2c3e50;"),
           tags$ul(
             style = "list-style: none; padding-left: 0;",
-
             tags$li(
               icon("circle-check", style = "color: #3A9BB2; margin-right: 8px;"),
               "Researchers with limited statistical background who need help selecting the correct statistical test."
@@ -369,20 +326,16 @@ ui <- navbarPage(
               icon("circle-check", style = "color: #3A9BB2; margin-right: 8px;"),
               "Teams that need clear, publication-ready plots and summaries without manual formatting"
             )
-          )
-          ,
-
+          ),
           div(
             style = "text-align: center; margin-top: 30px; font-style: italic; color: #666; font-size: 0.95em;",
             "Let science speak with statistical integrity."
           )
         )
-      ),
-
+      )
     )
   ),
-
-
+ 
   tabPanel("Continuous Data Tests",
            fluidPage(
              useShinyjs(),
@@ -4860,100 +4813,6 @@ output$cor_matrix_download_ui <- renderUI({
         })
       })
 
-      ## PRROOOOOOOOBBBBBBLLLLLLLEEEEEMMMM
-      # ---- Logistic Regression: Render Effect Plot ----  ## PRROOOOOOOOBBBBBBLLLLLLLEEEEEMMMM
-      # output$log_effect <- renderPlot({
-      #   tryCatch({
-      #     req(log_model_data(), input$log_dep, input$log_indep)
-      #     df <- log_model_data()
-      #     main_effects <- input$log_indep
-      #     interaction_terms <- NULL
-      #     if (!is.null(input$log_interact) && length(input$log_interact) > 0) {
-      #       interaction_terms <- input$log_interact
-      #     }
-      #     rhs <- c(main_effects, interaction_terms)
-      #     fml <- as.formula(paste(input$log_dep, "~", paste(rhs, collapse = " + ")))
-      #     mod <- glm(fml, data = df, family = binomial)
-      #
-      #     b <- sjPlot::get_model_data(mod, type = "est", transform = FALSE) %>%
-      #       dplyr::filter(!is.na(estimate), !is.na(conf.low), !is.na(conf.high)) %>%
-      #       dplyr::mutate(group = dplyr::case_when(
-      #         p.value < 0.05 & estimate > 0 ~ "sig_pos",
-      #         p.value < 0.05 & estimate < 0 ~ "sig_neg",
-      #         TRUE ~ "NS"
-      #       ))
-      #
-      #     if (nrow(b) == 0) {
-      #       showNotification("Effect plot could not be generated due to NA estimates or intervals.", type = "error")
-      #       return(NULL)
-      #     }
-      #
-      #     ggplot(b, aes(x = estimate, y = term)) +
-      #       geom_vline(xintercept = 0, linetype = "dashed") +
-      #       geom_errorbarh(aes(xmin = conf.low, xmax = conf.high), height = 0.11, size = 0.4, color = "black") +
-      #       geom_point(aes(fill = group), color = "black", shape = 21, size = 2.5, alpha = 1, show.legend = FALSE) +
-      #       scale_x_continuous(
-      #         limits = ~ c(-max(abs(.x)), max(abs(.x))),
-      #         expand = expansion(mult = 0.1)
-      #       ) +
-      #       scale_fill_manual(values = c("sig_pos" = "#377EB8", "sig_neg" = "#E41A1C", "NS" = "white")) +
-      #       labs(x = "Estimate (log-odds, 95% CI)", y = "") +
-      #       theme_bw() +
-      #       theme(
-      #         axis.text.x = element_text(size = 12, colour = "black"),
-      #         axis.title.x = element_text(size = 14, face = "bold"),
-      #         axis.text.y = element_text(size = 12, colour = "black"),
-      #         axis.title.y = element_text(size = 14, face = "bold")
-      #       )
-      #   }, error = function(e) {
-      #     showNotification(paste("Error in effect plot:", e$message), type = "error")
-      #     return(NULL)
-      #   })
-      # })
-
-
-
-
-
-
-      # output$ log_effect <- renderPlot({
-      #   req(log_model_data (), input$log_dep, input$log_indep)
-      #   df <- log_model_data ()
-      #   main_effects <- input$log_indep
-      #   interaction_terms <- NULL
-      #   if (!is.null(input$log_interact) && length(input$log_interact) > 0) {
-      #     interaction_terms <- gsub(":", " * ", input$log_interact)
-      #   }
-      #   rhs <- c(main_effects, interaction_terms)
-      #   fml <- as.formula(paste(input$log_dep, "~", paste(rhs, collapse = " + ")))
-      #   mod <- glm(fml, data = df, family = binomial)
-      #
-      #   b <- sjPlot::get_model_data(mod, type = "est")
-      #   b %>%
-      #     dplyr::mutate(group = dplyr::case_when(
-      #       p.value < 0.05 & estimate > 0 ~ "sig_pos",
-      #       p.value < 0.05 & estimate < 0 ~ "sig_neg",
-      #       TRUE ~ "NS"
-      #     )) %>%
-      #     dplyr::filter(!is.na(conf.low), !is.na(conf.high)) %>%
-      #     ggplot(aes(x = estimate, y = term)) +
-      #     geom_vline(xintercept = 0, linetype = "dashed") +
-      #     geom_errorbarh(aes(xmin = conf.low, xmax = conf.high), height = 0.11, size = 0.4, col = "black") +
-      #     geom_point(aes(fill = group), color = "black", shape = 21, size = 2.5, alpha = 1, show.legend = FALSE) +
-      #     scale_x_continuous(limits = ~ c(-max(abs(.x)), max(abs(.x))), expand = expansion(mult = 0.1)) +
-      #     scale_fill_manual(values = c("sig_pos" = "#377EB8", "sig_neg" = "#E41A1C", "NS" = "white")) +
-      #     labs(x = "Estimate (95% CI)", y = "") +
-      #     theme_test() +
-      #     theme(axis.text.x = element_text(size = 12, colour = "black"),
-      #           axis.title.x = element_text(size = 14, face = "bold"),
-      #           axis.text.y = element_text(size = 12, colour = "black"),
-      #           axis.title.y = element_text(size = 14, face = "bold"))
-      # })
-
-
-
-
-
 
       output$log_effect <- renderPlot({
         req(log_model_data(), input$log_dep, input$log_indep)
@@ -5001,19 +4860,6 @@ output$cor_matrix_download_ui <- renderUI({
             axis.title.y = element_text(size = 14, face = "bold")
           )
       })
-
-
-
-
-
-
-
-
-
-
-
-
-
 
       # ---- Logistic Regression: Auto-switch to Effect Plot Tab ----
       observeEvent(input$log_plot, {
