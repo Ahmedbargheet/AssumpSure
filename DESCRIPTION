@@ -24,7 +24,7 @@ Imports:
     MVN,
     performance,
     bestNormalize,
-    DHARMa
+    DHARMa,
     lmerTest,
     MASS,
     nnet,
