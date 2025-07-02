@@ -19,6 +19,7 @@ library(lmerTest)
 library(MASS)
 library(nnet)
 library(broom)
+library(broom.mixed)
 library(DT)
 library(sjPlot)
 source("https://gist.githubusercontent.com/benmarwick/2a1bb0133ff568cbe28d/raw/fb53bd97121f7f9ce947837ef1a4c65a73bffb3f/geom_flat_violin.R")
@@ -265,7 +266,6 @@ ui <- navbarPage(
       }
     "))
   ),
-
 
   tabPanel(
     title = tagList(icon("home"), "Welcome"),
@@ -983,7 +983,7 @@ ui <- navbarPage(
       # Contact Info
   h4(icon("envelope", style = "margin-right: 8px; color: #E3A599;"), "Need Help?",
      style = "color: #2c3e50; font-weight: 600;"),
-  
+
   p(
     HTML('For feedback, questions, or bug reports, please contact us <a href="mailto:ahmed.bargheet@yahoo.com" style="color: #3A9BB2; text-decoration: underline;">HERE</a>.'),
     style = "color: #444; text-align: left; margin-top: 10px;"
@@ -1019,7 +1019,7 @@ server <- function(input, output, session) {
   data <- reactive({
     req(input$file)
     tryCatch({
-      read_csv(input$file$datapath, col_types = cols(.default = "c"),
+      read_csv(input$file$datapath, col_types = cols(.default = "c"), show_col_types = F,
                na = c("", "NA", "N/A", "null"))
     }, error = function(e) {
       showNotification(paste("Error reading file:", e$message), type = "error")
@@ -2508,7 +2508,7 @@ output$statistical_significance_square <- renderUI({
   ## Read the data and update timepoint dropdown
   fisher_data <- reactive({
     req(input$file_fisher)
-    readr::read_csv(input$file_fisher$datapath)
+    readr::read_csv(input$file_fisher$datapath, show_col_types = F)
   })
 
   run_fisher_clicked <- reactiveVal(FALSE)
@@ -2879,7 +2879,7 @@ output$statistical_significance_square <- renderUI({
   cor_data <- reactive({
     req(input$cor_file)
     tryCatch({
-      readr::read_csv(input$cor_file$datapath)
+      readr::read_csv(input$cor_file$datapath, show_col_types = F)
     }, error = function(e) {
       showNotification(paste("Error reading file:", e$message), type = "error")
       NULL
@@ -3971,7 +3971,7 @@ output$cor_matrix_download_ui <- renderUI({
     # ---- LM Data Loader ----
     lm_data <- reactive({
       req(input$lm_file)
-      readr::read_csv(input$lm_file$datapath)
+      readr::read_csv(input$lm_file$datapath, show_col_types = F)
     })
 
     # ---- LM: UI for Dependent Variable ----
@@ -4148,7 +4148,7 @@ output$cor_matrix_download_ui <- renderUI({
         req(lm_data(), input$lm_dep)
         df <- lm_data()
         ggplot(df, aes_string(input$lm_dep)) +
-          geom_histogram(aes(y = ..density..), color = "black", fill = "#4db6ac", bins = 30) +
+          geom_histogram(aes(y = after_stat(density)), color = "black", fill = "#4db6ac", bins = 30) +
           geom_density(color = "#b2182b", size = 1.2, alpha = 0.7, show.legend = FALSE) +
           theme_test() +
           labs(title = "Before Transformation", x = input$lm_dep, y = "Count")
@@ -4158,7 +4158,7 @@ output$cor_matrix_download_ui <- renderUI({
         req(lm_transformed_data(), input$lm_dep)
         df <- lm_transformed_data()
         ggplot(df, aes_string(input$lm_dep)) +
-          geom_histogram(aes(y = ..density..), color = "black", fill = "#ffb74d", bins = 30) +
+          geom_histogram(aes(y = after_stat(density)), color = "black", fill = "#ffb74d", bins = 30) +
           geom_density(color = "#b2182b", size = 1.2, alpha = 0.7, show.legend = FALSE) +
           theme_test() +
           labs(title = "After Transformation", x = paste0(input$lm_dep, " (transformed)"), y = "Count")
@@ -4196,7 +4196,7 @@ output$cor_matrix_download_ui <- renderUI({
         png(file, width = 1200, height = 900, res = 150)
         print(
           ggplot(df, aes_string(dep_var)) +
-            geom_histogram(aes(y = ..density..), color = "black", fill = "#4db6ac", bins = 30) +
+            geom_histogram(aes(y = after_stat(density)), color = "black", fill = "#4db6ac", bins = 30) +
             geom_density(color = "#b2182b", size = 1.2, alpha = 0.7, show.legend = FALSE) +
             theme_test() +
             labs(title = "Before Transformation", x = dep_var, y = "Count")
@@ -4214,7 +4214,7 @@ output$cor_matrix_download_ui <- renderUI({
         png(file, width = 1200, height = 900, res = 150)
         print(
           ggplot(df, aes_string(input$lm_dep)) +
-            geom_histogram(aes(y = ..density..), color = "black", fill = "#ffb74d", bins = 30) +
+            geom_histogram(aes(y = after_stat(density)), color = "black", fill = "#ffb74d", bins = 30) +
             geom_density(color = "#b2182b", size = 1.2, alpha = 0.7, show.legend = FALSE) +
             theme_test() +
             labs(title = "After Transformation", x = paste0(input$lm_dep, " (transformed)"), y = "Density")
@@ -4422,7 +4422,7 @@ output$cor_matrix_download_ui <- renderUI({
         req(lmm_data(), input$lmm_dep)
         df <- lmm_data()
         ggplot(df, aes_string(input$lmm_dep)) +
-          geom_histogram(aes(y = ..density..), color = "black", fill = "#4db6ac", bins = 30) +
+          geom_histogram(aes(y = after_stat(density)), color = "black", fill = "#4db6ac", bins = 30) +
           geom_density(color = "#b2182b", size = 1.2, alpha = 0.7, show.legend = FALSE) +
           theme_test() +
           labs(title = "Before Transformation", x = input$lmm_dep, y = "Density")
@@ -4441,7 +4441,7 @@ output$cor_matrix_download_ui <- renderUI({
                           "none" = x)
         plot_df <- data.frame(val = trans_x)
         ggplot(plot_df, aes(val)) +
-          geom_histogram(aes(y = ..density..), color = "black", fill = "#ffb74d", bins = 30) +
+          geom_histogram(aes(y = after_stat(density)), color = "black", fill = "#ffb74d", bins = 30) +
           geom_density(color = "#b2182b", size = 1.2, alpha = 0.7, show.legend = FALSE) +
           theme_test() +
           labs(title = "After Transformation", x = paste0(input$lmm_dep, " (transformed)"), y = "Density")
@@ -4457,7 +4457,7 @@ output$cor_matrix_download_ui <- renderUI({
         png(file, width = 1200, height = 900, res = 150)
         print(
           ggplot(df, aes_string(input$lmm_dep)) +
-            geom_histogram(aes(y = ..density..), color = "black", fill = "#4db6ac", bins = 30) +
+            geom_histogram(aes(y = after_stat(density)), color = "black", fill = "#4db6ac", bins = 30) +
             geom_density(color = "#b2182b", size = 1.2, alpha = 0.7, show.legend = FALSE) +
             theme_test() +
             labs(title = "Before Transformation", x = input$lmm_dep, y = "Density")
@@ -4481,7 +4481,7 @@ output$cor_matrix_download_ui <- renderUI({
         png(file, width = 1200, height = 900, res = 150)
         print(
           ggplot(plot_df, aes(val)) +
-            geom_histogram(aes(y = ..density..), color = "black", fill = "#ffb74d", bins = 30) +
+            geom_histogram(aes(y = after_stat(density)), color = "black", fill = "#ffb74d", bins = 30) +
             geom_density(color = "#b2182b", size = 1.2, alpha = 0.7, show.legend = FALSE) +
             theme_test() +
             labs(title = "After Transformation", x = paste0(input$lmm_dep, " (transformed)"), y = "Density")
@@ -4724,7 +4724,7 @@ output$cor_matrix_download_ui <- renderUI({
 
       log_data <- reactive({
         req(input$log_file)
-        readr::read_csv(input$log_file$datapath)
+        readr::read_csv(input$log_file$datapath, show_col_types = F)
       })
 
 
@@ -5097,7 +5097,7 @@ output$cor_matrix_download_ui <- renderUI({
       # ---- Negative Binomial: Reactive Data Upload ----
       nb_data <- reactive({
         req(input$nb_file)
-        readr::read_csv(input$nb_file$datapath)
+        readr::read_csv(input$nb_file$datapath, show_col_types = F)
       })
 
       # ---- Negative Binomial: UI for Dependent Variable ----
@@ -5367,7 +5367,7 @@ output$cor_matrix_download_ui <- renderUI({
       # ---- Multinomial Regression: Reactive Data ----
       multi_data <- reactive({
         req(input$multi_file)
-        readr::read_csv(input$multi_file$datapath)
+        readr::read_csv(input$multi_file$datapath, show_col_types = F)
       })
 
 

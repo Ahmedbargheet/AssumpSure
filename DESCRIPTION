@@ -29,6 +29,7 @@ Imports:
     MASS,
     nnet,
     broom,
+    broom.mixed,
     DT,
     sjPlot
 Encoding: UTF-8
