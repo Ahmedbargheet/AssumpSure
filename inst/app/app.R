@@ -975,36 +975,52 @@ server <- function(input, output, session) {
   data <- reactive({
     req(input$file)
     tryCatch({
-      read_csv(input$file$datapath, col_types = cols(.default = "c"), show_col_types = F,
-               na = c("", "NA", "N/A", "null"))
+      df <- readr::read_csv(input$file$datapath, col_types = cols(.default = "c"), show_col_types = FALSE,
+                            na = c("", "NA", "N/A", "null"))
+      
+      # Convert to appropriate types
+      df[] <- lapply(df, function(col) {
+        # Try numeric first
+        num_col <- suppressWarnings(as.numeric(col))
+        if (!any(is.na(num_col)) && length(unique(num_col)) > 10) {
+          return(num_col)  # continuous
+        } else if (length(unique(col)) <= 10) {
+          return(factor(col))  # categorical
+        } else {
+          return(col)  # leave as is
+        }
+      })
+      
+      df
     }, error = function(e) {
       showNotification(paste("Error reading file:", e$message), type = "error")
       NULL
     })
   })
-
-  ## Render the timepoint selector only if present
-  output$timepoint_ui <- renderUI({
-    df <- data()
-    if ("timepoint" %in% names(df)) {
-      selectInput(
-        "timepoint",
-        label = "Select timepoint (for longitudinal data):",
-        choices = c("Select timepoint" = "", unique(df$timepoint)),
-        selected = ""
-      )
-    }
-  })
-
-
+  
   # --- Column selectors (dynamic) ---
   output$column_selectors <- renderUI({
-    req(data())
-    cols <- names(data())
-    cols <- c("Choose" = "", cols)
+    df <- data()
+    req(df)
+    
+    # Continuous: numeric with many unique values
+    numeric_vars <- names(df)[sapply(df, function(col) {
+      is.numeric(col) &&
+        length(unique(col)) > 10 &&
+        any(col %% 1 != 0, na.rm = TRUE)  # Exclude if all values are integers
+    })]
+    
+    # Categorical: factor or character with few unique values
+    cat_vars <- names(df)[sapply(df, function(col) {
+      is.factor(col) || (is.character(col) && length(unique(col)) <= 10)
+    })]
+    
     tagList(
-      selectInput("value_col", "Select Numeric Value Column:", choices = cols),
-      selectInput("group_col", "Select Group/Condition Column:", choices = cols))
+      selectInput("value_col", "Select Numeric Value Column (continuous):",
+                  choices = c("Choose" = "", numeric_vars)),
+      selectInput("group_col", "Select Group/Condition Column (categorical):",
+                  choices = c("Choose" = "", cat_vars))
+    )
   })
 
   # --- Reactive: processed data ---
@@ -3933,7 +3949,11 @@ output$cor_matrix_download_ui <- renderUI({
     # ---- LM: UI for Dependent Variable ----
     output$lm_dep_ui <- renderUI({
       df <- lm_data()
-      num_vars <- names(df)[sapply(df, is.numeric)]
+      num_vars <- names(df)[sapply(df, function(col) {
+        is.numeric(col) &&
+          length(unique(col)) > 10 &&
+          any(col %% 1 != 0, na.rm = TRUE)  # exclude integer-only
+      })]
       tagList(
         selectInput("lm_dep", "Select dependent variable (continuous):",
                     choices = c("Select variable" = "", num_vars),
@@ -3941,7 +3961,7 @@ output$cor_matrix_download_ui <- renderUI({
         tags$div(
           style = "color: #b2182b; font-size: 13px; font-weight: bold; margin-top: -10px; margin-bottom: 10px;",
           icon("info-circle", lib = "font-awesome"),
-          "Use only continuous dependent variable. Do not use counts or discrete, as this violates model assumptions. For count data, use a negative binomial instead."
+          "Only continuous variables are shown. Count or discrete variables are excluded, as they violate model assumptions. For count outcomes, please use the negative binomial option."
         )
       )
     })
@@ -4267,14 +4287,18 @@ output$cor_matrix_download_ui <- renderUI({
     output$lmm_dep_ui <- renderUI({
       req(input$lmm_file)
       df <- read.csv(input$lmm_file$datapath)
-      num_vars <- names(df)[sapply(df, is.numeric)]
+      num_vars <- names(df)[sapply(df, function(col) {
+        is.numeric(col) &&
+          length(unique(col)) > 10 &&
+          any(col %% 1 != 0, na.rm = TRUE)  # exclude integer-only
+      })]
       tagList(
         selectInput("lmm_dep", "Select dependent variable (continuous):",
                     choices = c("Select variable" = "", num_vars), selected = ""),
         tags$div(
           style = "color: #b2182b; font-size: 13px; font-weight: bold; margin-top: -10px; margin-bottom: 10px;",
           icon("info-circle", lib = "font-awesome"),
-          "Use only continuous dependent variable. Do not use counts or discrete, as this violates model assumptions. For count data, use a negative binomial instead."
+          "Only continuous variables are shown. Count or discrete variables are excluded, as they violate model assumptions. For count outcomes, please use the negative binomial option."
         )
       )
     })
@@ -4963,7 +4987,7 @@ output$cor_matrix_download_ui <- renderUI({
           tags$div(
             style = "color: #b2182b; font-size: 13px; font-weight: bold; margin-top: -10px; margin-bottom: 10px;",
             icon("info-circle", lib = "font-awesome"),
-            "Use only count data. For continuous outcomes, use LM or LMM."
+            "Only count data are shown. Continuous variables are excluded, as they violate model assumptions. For continuous outcomes, please use LM or LMM instead."
           )
         )
       })
