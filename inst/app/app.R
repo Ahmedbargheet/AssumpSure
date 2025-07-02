@@ -421,6 +421,7 @@ ui <- navbarPage(
                  verbatimTextOutput("posthoc_result_fisher"),
                  plotOutput("fisher_plot"),
                  downloadButton("download_fisher_plot", "Download Plot"),
+                 uiOutput("chi_fisher_warning")
                )
              )
            )
@@ -2489,6 +2490,27 @@ output$statistical_significance_square <- renderUI({
   observeEvent(list(input$file_fisher, input$cat1, input$cat2, input$test_type_fisher), {
     run_fisher_clicked(FALSE)
   })
+  
+  # UI for selecting first categorical variable
+  output$cat1_ui <- renderUI({
+    df <- fisher_data()
+    cat_vars <- names(df)[sapply(df, function(col) is.character(col) || is.factor(col))]
+    
+    selectInput("cat1", "Select first categorical variable:",
+                choices = c("Select variable" = "", cat_vars),
+                selected = "")
+  })
+  
+  # UI for selecting second categorical variable, excluding the first
+  output$cat2_ui <- renderUI({
+    df <- fisher_data()
+    cat_vars <- names(df)[sapply(df, function(col) is.character(col) || is.factor(col))]
+    
+    selectInput("cat2", "Select second categorical variable:",
+                choices = c("Select variable" = "", cat_vars),
+                selected = "")
+  })
+  
 
   output$fisher_timepoint_ui <- renderUI({
     df <- fisher_data()
@@ -2504,7 +2526,7 @@ output$statistical_significance_square <- renderUI({
   # Update the categorical variable selectors when data is uploaded or timepoint selected
   observe({
     df <- fisher_data()
-    if (!is.null(input$fisher_timepoint) && "timepoint" %in% names(df)) {
+    if (!is.null(input$fisher_timepoint) && input$fisher_timepoint != "" && "timepoint" %in% names(df)) {
       df <- dplyr::filter(df, timepoint == input$fisher_timepoint)
     }
     is_categorical <- function(x) is.factor(x) || is.character(x)
@@ -2520,6 +2542,16 @@ output$statistical_significance_square <- renderUI({
     output$fisher_chisq_result <- renderPrint({ "The server is ready." })
     output$posthoc_result_fisher <- renderPrint({ "The server is ready." })
   }
+  
+  observeEvent(input$cat1, {
+    df <- fisher_data()
+    cat_vars <- names(df)[sapply(df, function(col) is.character(col) || is.factor(col))]
+    remaining_vars <- setdiff(cat_vars, input$cat1)
+    
+    updateSelectInput(session, "cat2",
+                      choices = c("Select variable" = "", remaining_vars),
+                      selected = "")
+  })
 
   observeEvent(input$file_fisher, reset_outputs())
   observeEvent(input$test_type_fisher, reset_outputs())
@@ -2531,17 +2563,15 @@ output$statistical_significance_square <- renderUI({
     run_fisher_clicked(TRUE)
     req(fisher_data(), input$cat1, input$cat2, input$test_type_fisher)
     df <- fisher_data()
-    if (!is.null(input$fisher_timepoint) && "timepoint" %in% names(df)) {
+    if (!is.null(input$fisher_timepoint) && input$fisher_timepoint != "" && "timepoint" %in% names(df)) {
       df <- dplyr::filter(df, timepoint == input$fisher_timepoint)
     }
+    
     if (input$cat1 == "" || input$cat2 == "") {
       showNotification("Please select both categorical variables.", type = "error")
       return()
     }
-    if (!is.null(input$fisher_timepoint) && input$fisher_timepoint == "") {
-      showNotification("Please select a timepoint.", type = "error")
-      return()
-    }
+
 
     # --- Force categorical, remove NAs, drop unused levels ---
     df[[input$cat1]] <- as.factor(df[[input$cat1]])
@@ -2561,16 +2591,11 @@ output$statistical_significance_square <- renderUI({
 
 
     output$fisher_chisq_result <- renderPrint({
-      # 1. Prevent error if timepoint is not selected
-      if (!is.null(input$fisher_timepoint) && input$fisher_timepoint == "") {
-        showNotification("Please select a timepoint.", type = "error")
-        return(invisible(NULL))   # Make sure nothing runs below this
-      }
-      # Only proceed if timepoint is selected
       df <- fisher_data()
-      if (!is.null(input$fisher_timepoint) && "timepoint" %in% names(df)) {
+      if (!is.null(input$fisher_timepoint) && input$fisher_timepoint != "" && "timepoint" %in% names(df)) {
         df <- dplyr::filter(df, timepoint == input$fisher_timepoint)
       }
+      
       if (nrow(df) == 0) {
         return(invisible(NULL)) # Prevent errors if no data after filtering
       }
@@ -2581,8 +2606,22 @@ output$statistical_significance_square <- renderUI({
 
       tryCatch({
         if (input$test_type_fisher == "chisq") {
-          exp_counts <- chisq.test(tab)$expected
-          if (any(exp_counts < 5)) cat("Warning: Some expected counts < 5. Fisher's test recommended.\n")
+          test <- chisq.test(tab)
+          exp_counts <- test$expected
+          
+          # Store warning if expected count < 5
+          warn_msg <- NULL
+          if (any(exp_counts < 5)) {
+            warn_msg <<- div(
+              style = "background-color:#fff3cd; color:#856404; padding:14px; border:1px solid #ffeeba; border-radius:5px; margin-bottom:12px;",
+              icon("exclamation-triangle", lib = "font-awesome"),
+              strong(" Warning: "),
+              "Some expected cell counts are less than 5. Consider using Fisher's exact test instead of Chi-square."
+            )
+          } else {
+            warn_msg <<- NULL
+          }
+          
           knitr::kable(rstatix::chisq_test(tab), align = "c", "simple")
         } else {
           knitr::kable(rstatix::fisher_test(tab, detailed = T), align = "c", "simple")
@@ -2628,9 +2667,7 @@ output$statistical_significance_square <- renderUI({
       table()
 
     output$posthoc_result_fisher <- renderPrint({
-      if (!is.null(input$fisher_timepoint) && input$fisher_timepoint == "") {
-        return(invisible(NULL))
-      }
+      if (!run_fisher_clicked()) return(NULL)
 
       count1 <- nlevels(droplevels(df[[input$cat1]]))
       count2 <- nlevels(droplevels(df[[input$cat2]]))
@@ -2702,17 +2739,16 @@ output$statistical_significance_square <- renderUI({
   }
 
   output$fisher_chisq_square <- renderUI({
-    if (!is.null(input$fisher_timepoint) && input$fisher_timepoint == "") {
-      return(invisible(NULL))
-    }
+    if (!run_fisher_clicked()) return(NULL)
 
     if (!run_fisher_clicked()) return(NULL)
     req(fisher_data(), input$cat1, input$cat2, input$test_type_fisher)
     df <- fisher_data()
     # Filter by timepoint if needed
-    if (!is.null(input$fisher_timepoint) && "timepoint" %in% names(df)) {
+    if (!is.null(input$fisher_timepoint) && input$fisher_timepoint != "" && "timepoint" %in% names(df)) {
       df <- dplyr::filter(df, timepoint == input$fisher_timepoint)
     }
+    
     df[[input$cat1]] <- as.factor(df[[input$cat1]])
     df[[input$cat2]] <- as.factor(df[[input$cat2]])
     tab <- df %>%
@@ -2729,16 +2765,14 @@ output$statistical_significance_square <- renderUI({
 
  ## plotting for Fisher or Chi square
   observeEvent(input$plot_fisher, {
-    if (!is.null(input$fisher_timepoint) && input$fisher_timepoint == "") {
-      output$fisher_plot <- renderPlot({ NULL })
-      return()
-    }
+    if (!run_fisher_clicked()) return(NULL)
 
     req(fisher_data(), input$cat1, input$cat2)
     df <- fisher_data()
-    if (!is.null(input$fisher_timepoint) && "timepoint" %in% names(df)) {
+    if (!is.null(input$fisher_timepoint) && input$fisher_timepoint != "" && "timepoint" %in% names(df)) {
       df <- dplyr::filter(df, timepoint == input$fisher_timepoint)
     }
+    
     plot_df <- df %>%
       dplyr::select(.data[[input$cat1]], .data[[input$cat2]]) %>%
       dplyr::group_by(.data[[input$cat1]], .data[[input$cat2]]) %>%
@@ -2774,9 +2808,10 @@ output$statistical_significance_square <- renderUI({
     },
     content = function(file) {
       df <- fisher_data()
-      if (!is.null(input$fisher_timepoint) && "timepoint" %in% names(df)) {
+      if (!is.null(input$fisher_timepoint) && input$fisher_timepoint != "" && "timepoint" %in% names(df)) {
         df <- dplyr::filter(df, timepoint == input$fisher_timepoint)
       }
+      
 
       plot_df <- df %>%
         dplyr::select(.data[[input$cat1]], .data[[input$cat2]]) %>%
@@ -2811,7 +2846,41 @@ output$statistical_significance_square <- renderUI({
     }
   )
 
-
+  output$chi_fisher_warning <- renderUI({
+    req(fisher_data(), input$cat1, input$cat2)
+    if (input$cat1 == "" || input$cat2 == "") return(NULL)
+    
+    df <- fisher_data()
+    if (!is.null(input$fisher_timepoint) && input$fisher_timepoint != "" && "timepoint" %in% names(df)) {
+      df <- dplyr::filter(df, timepoint == input$fisher_timepoint)
+    }
+    
+    if (nrow(df) == 0 || !(input$cat1 %in% names(df)) || !(input$cat2 %in% names(df))) return(NULL)
+    
+    tab <- tryCatch({
+      df %>%
+        dplyr::select(.data[[input$cat1]], .data[[input$cat2]]) %>%
+        tidyr::drop_na() %>%
+        table()
+    }, error = function(e) NULL)
+    
+    if (is.null(tab) || any(dim(tab) == 0)) return(NULL)
+    
+    if (input$test_type_fisher == "chisq") {
+      exp_counts <- suppressWarnings(tryCatch(chisq.test(tab)$expected, error = function(e) NULL))
+      if (!is.null(exp_counts) && any(exp_counts < 5)) {
+        return(div(
+          style = "background-color:#fff3cd; color:#856404; padding:14px; border:1px solid #ffeeba; border-radius:5px; margin-bottom:12px;",
+          icon("exclamation-triangle", lib = "font-awesome"),
+          strong("Warning: "),
+          "Some expected frequencies < 5. Chi-squared approximation may be invalid. Consider using Fisher's Exact Test instead."
+        ))
+      }
+    }
+    
+    return(NULL)
+  })
+  
 ############################################################################################################
 ############################################################################################################
 ############################################################################################################
