@@ -58,12 +58,6 @@ library(devtools)
 # Install AssumpSure package
 install_github("https://github.com/Ahmedbargheet/AssumpSure")
 ```
-## 📁 NOTE
-To enable PDF report export, you must install PhantomJS. Run this ONCE in your R session:
-```r
-library(webshot)
-install_phantomjs()
-```
 
 ## 🚀 Launch the App
 
