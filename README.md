@@ -56,7 +56,7 @@ install.packages("devtools")
 library(devtools)
 
 # Install AssumpSure package
-devtools::install_github("https://github.com/Ahmedbargheet/AssumpSure")
+install_github("https://github.com/Ahmedbargheet/AssumpSure")
 ```
 
 ## 🚀 Launch the App
