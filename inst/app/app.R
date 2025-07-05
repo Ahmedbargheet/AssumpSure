@@ -3,6 +3,7 @@ library(shinyjs)
 library(shinyBS)
 library(bslib)
 library(htmltools)
+library(shinyscreenshot)
 library(fontawesome)
 library(tidyverse)
 library(rstatix)
@@ -238,9 +239,42 @@ ui <- navbarPage(
         margin-right: 200px !important; /* Adjust as needed */
         }
       "))
+    ),
+    # Hide download buttons (Continuous)
+    tags$head(
+      tags$script(HTML("
+    function screenshotWithoutDownloadBtns() {
+      // Hide all elements with class 'no-print'
+      var btns = document.getElementsByClassName('no-print');
+      for(var i=0;i<btns.length;i++){ btns[i].style.display='none'; }
+      // Wait 250ms, then trigger shiny's screenshot, then restore
+      setTimeout(function() {
+        Shiny.setInputValue('start_screenshot', new Date().getTime());
+        setTimeout(function() {
+          for(var i=0;i<btns.length;i++){ btns[i].style.display=''; }
+        }, 750);
+      }, 250);
+    }
+  "))
+    ),
+    # Hide download buttons (Correlation)
+    tags$head(
+      tags$script(HTML("
+function corScreenshotWithoutScatterBtn() {
+  var btns = document.getElementsByClassName('cor-hide-in-screenshot');
+  for(var i=0; i<btns.length; i++) { btns[i].style.display='none'; }
+  setTimeout(function() {
+    Shiny.setInputValue('cor_start_screenshot', new Date().getTime());
+    setTimeout(function() {
+      for(var i=0; i<btns.length; i++) { btns[i].style.display=''; }
+    }, 500); // restore after 0.5s
+  }, 200); // trigger screenshot after 0.2s
+}
+  "))
     )
-  ),
+    ),
 
+  
   # Navigation panels start here
   tabPanel(
     title = tagList(icon("home"), "Welcome"),
@@ -342,13 +376,20 @@ ui <- navbarPage(
              tags$head(
                tags$style(HTML(
                  '
-      .nav-tabs>li>a[data-value="Assumption Tests"]
-      { background-color: #9EC2D1 !important; color: #333 !important; border-color: black !important;}
-      .nav-tabs>li>a[data-value="Test Results"]
-      { background-color: #F2E099 !important; color: #333 !important; border-color: black !important;}
-      .nav-tabs > li + li {
-      margin-left: 5px !important;  /* Adjust the gap between tabs */}
-      '
+    .nav-tabs>li>a[data-value="Assumption Tests"]
+    { background-color: #9EC2D1 !important; color: #333 !important; border-color: black !important;}
+    .nav-tabs>li>a[data-value="Test Results"]
+    { background-color: #F2E099 !important; color: #333 !important; border-color: black !important;}
+    .nav-tabs > li + li {
+      margin-left: 5px !important;
+    }
+
+    @media print {
+      .no-print {
+        display: none !important;
+      }
+    }
+    '
                ))
              ),
              sidebarLayout(
@@ -372,7 +413,14 @@ ui <- navbarPage(
                mainPanel(
                  tabsetPanel(
                    id = "cont_tabs",
-                   tabPanel("Assumption Tests", uiOutput("assumption_content")),
+                   #tabPanel("Assumption Tests", uiOutput("assumption_content")),
+                   tabPanel("Assumption Tests",
+                            uiOutput("assumption_render"),
+                            tags$div(style = "margin-top: 10px;"),
+                            uiOutput("show_screenshot_btn"),
+                            div(id = "report_content",
+                                uiOutput("assumption_content")),
+                           ),
                    tabPanel("Test Results",
                             uiOutput("test_result_with_square"),
                             uiOutput("posthoc_ui"),
@@ -748,7 +796,9 @@ ui <- navbarPage(
                    id = "cor_tabs",
                    tabPanel(
                      "Assumption Tests",
-                     uiOutput("cor_assumption_content")
+                     tags$div(style = "margin-top: 10px;"),
+                     uiOutput("cor_show_screenshot_btn"),
+                     div(id = "cor_report_content", uiOutput("cor_assumption_content"))
                    ),
                    tabPanel(
                      "Test Results",
@@ -1024,6 +1074,19 @@ server <- function(input, output, session) {
     )
   })
 
+  output$timepoint_ui <- renderUI({
+    df <- data()
+    req(df)
+    
+    if ("timepoint" %in% names(df)) {
+      selectInput("timepoint",
+                  label = "Select Timepoint (for longitudinal data):",
+                  choices = c("Select timepoint" = "", as.character(unique(df$timepoint))),
+                  selected = ""
+      )
+    }
+  })
+  
   # --- Reactive: processed data ---
   processed_data <- reactiveVal(NULL)
   run_test_clicked <- reactiveVal(FALSE)
@@ -1365,8 +1428,9 @@ assumption_ui_independent <- function() {
     br(),
     h4("Diagnostic Plots"),
     fluidRow(
-      column(6, plotOutput("qq_plot"), downloadButton("download_qq", "Download Q-Q Plot")),
-      column(6, plotOutput("histogram_plot"), downloadButton("download_histogram", "Download Histogram"))
+      column(6, plotOutput("qq_plot"), downloadButton("download_qq", "Download Q-Q Plot", class = "no-print")),
+      column(6, plotOutput("histogram_plot"), downloadButton("download_histogram", "Download Histogram", 
+                                                             class = "no-print"))
     ),
     br(),
     h4("Assumption Check Summary"),
@@ -1400,8 +1464,9 @@ assumption_ui_dependent <- function() {
     br(),
     h4("Diagnostic Plots"),
     fluidRow(
-      column(6, plotOutput("qq_plot"), downloadButton("download_qq", "Download Q-Q Plot")),
-      column(6, plotOutput("histogram_plot"), downloadButton("download_histogram", "Download Histogram"))
+      column(6, plotOutput("qq_plot"), downloadButton("download_qq", "Download Q-Q Plot", class = "no-print")),
+      column(6, plotOutput("histogram_plot"), downloadButton("download_histogram", "Download Histogram", 
+                                                             class = "no-print"))
     ),
     br(),
     h4("Assumption Check Summary"),
@@ -1461,8 +1526,9 @@ assumption_ui_anova <- function() {
       has_check_error <- is.null(lev_res) || is.null(shap_res)
       if (!has_check_error) {
         fluidRow(
-          column(6, plotOutput("qq_plot"), downloadButton("download_qq", "Download Q-Q Plot")),
-          column(6, plotOutput("histogram_plot"), downloadButton("download_histogram", "Download Histogram"))
+          column(6, plotOutput("qq_plot"), downloadButton("download_qq", "Download Q-Q Plot", class = "no-print")),
+          column(6, plotOutput("histogram_plot"), downloadButton("download_histogram", "Download Histogram", 
+                                                                 class = "no-print"))
         )
       } else {
         div(style = "color: #b00; margin: 10px 0;",
@@ -1884,6 +1950,25 @@ output$levene_text <- renderPrint({
     )
   })
 
+
+  # Screenshot of the assumption
+  observeEvent(input$start_screenshot, {
+    shinyscreenshot::screenshot(selector = "#report_content", scale = 8)
+  })
+
+  output$show_screenshot_btn <- renderUI({
+    # Show only if the report is not empty
+    if (!is.null(processed_data())) {
+      div(
+        id = "screenshot_div",
+        #style = "display: none;",  # Hidden by default, shown programmatically
+        actionButton("screenshot_btn", "Download Full Report", class = "btn-plot",
+                     onclick = "screenshotWithoutDownloadBtns()")
+      )
+    }
+  })
+  
+  
   # --- Run Statistical Test ---
 
 ## Independent t-test
@@ -3179,7 +3264,8 @@ output$statistical_significance_square <- renderUI({
         # ),
         div(
           style = "text-align:center; margin-top: 12px; margin-bottom: 18px;",
-          downloadButton("cor_download_plot", "Download Scatter Plot")
+          downloadButton("cor_download_plot", "Download Scatter Plot", 
+                         class = "no-print cor-hide-in-screenshot")
         ),
         br(),
 
@@ -3437,6 +3523,45 @@ output$statistical_significance_square <- renderUI({
     }
   )
 
+  
+  # screenshot of correlation
+  
+  cor_assumptions_checked <- reactiveVal(FALSE)
+  observeEvent(list(input$cor_features, input$cor_method, input$cor_file), {
+    cor_assumptions_checked(FALSE)
+  })
+  
+  observeEvent(input$cor_check_assumptions, {
+    cor_assumptions_checked(TRUE)
+  })
+  
+  
+  observeEvent(input$cor_start_screenshot, {
+    shinyscreenshot::screenshot(selector = "#cor_report_content", scale = 8)
+  })
+  
+  
+  div(id = "cor_report_content", uiOutput("cor_assumption_content"))
+  
+  output$cor_show_screenshot_btn <- renderUI({
+    if (!is.null(cor_selected_data()) && 
+        !is.null(input$cor_features) &&
+        length(input$cor_features) == 2 && 
+        input$cor_method == "pearson" &&
+        cor_assumptions_checked()) {
+      div(
+        id = "cor_screenshot_div",
+        actionButton(
+          "cor_screenshot_btn",
+          "Download Full Report",
+          class = "btn-plot",
+          onclick = "corScreenshotWithoutScatterBtn()"
+        )
+      )
+    }
+  })
+  
+  
 
   # Show correlation table if ≤10 features
   output$cor_table_ui <- renderUI({

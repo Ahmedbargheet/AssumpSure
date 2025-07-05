@@ -13,6 +13,7 @@ Imports:
     shinyBS,
     bslib,
     htmltools,
+    shinyscreenshot,
     fontawesome,
     tidyverse,
     rstatix,
