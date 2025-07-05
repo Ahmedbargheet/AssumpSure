@@ -3035,7 +3035,7 @@ output$statistical_significance_square <- renderUI({
       choices = num_cols,
       selected = num_cols[seq_len(min(2, length(num_cols)))],
       multiple = TRUE,
-      options = list(maxItems = 50)
+      options = list(maxItems = Inf)
     )
   })
 
@@ -3072,8 +3072,8 @@ output$statistical_significance_square <- renderUI({
     df <- df %>% dplyr::select(dplyr::all_of(input$cor_features))
 
     # Optional prevalence filter
-    if (!is.null(input$prevalence_filter) && input$prevalence_filter > 0) {
-      keep <- sapply(df, function(x) mean(x > 0, na.rm = TRUE) >= input$prevalence_filter / 100)
+    if (!is.null(input$cor_prev_filter) && input$cor_prev_filter > 0) {
+      keep <- sapply(df, function(x) mean(x > 0, na.rm = TRUE) >= input$cor_prev_filter / 100)
       df <- df[, keep, drop = FALSE]
     }
 
@@ -3956,9 +3956,19 @@ output$cor_matrix_download_ui <- renderUI({
       summary(redundant = TRUE)
     cormat_mat <- as.matrix(cormat[,-1])
     rownames(cormat_mat) <- cormat[,1]
-    corrplot::corrplot(cormat_mat, type = "lower", na.label = NA, outline = T, order = "hclust",
-                       tl.cex = 1.5, cl.cex = 1.2, tl.srt = 45, tl.col = "black", cl.ratio = 0.2,
-                       col = rev(corrplot::COL2('RdBu', 200)))
+    
+    
+    # --- Dynamic label size ---
+    tl_size <- ifelse(n_feat > 15, 1.1,
+                      ifelse(n_feat > 10, 1.3, 1.8))
+    cl_size <- ifelse(n_feat > 15, 0.8,
+                      ifelse(n_feat > 10, 1.1, 1.4))
+    
+    corrplot::corrplot(
+      cormat_mat, type = "lower", na.label = NA, outline = TRUE, order = "hclust",
+      tl.cex = tl_size, cl.cex = cl_size, tl.srt = 45, tl.col = "black", cl.ratio = 0.2,
+      col = rev(corrplot::COL2('RdBu', 200))
+    )
   })
 
 
@@ -3974,7 +3984,7 @@ output$cor_matrix_download_ui <- renderUI({
   )
 
 
-    output$cor_download_heatmap <- downloadHandler(
+  output$cor_download_heatmap <- downloadHandler(
     filename = function() paste0("correlation_heatmap_", Sys.Date(), ".png"),
     content = function(file) {
       df <- cor_clr_data()
@@ -3984,15 +3994,25 @@ output$cor_matrix_download_ui <- renderUI({
           summary(redundant = TRUE)
         cormat_mat <- as.matrix(cormat[,-1])
         rownames(cormat_mat) <- cormat[,1]
-        png(file, width = 1400, height = 1400, res = 500)
-        par(mar = c(2, 2, 2, 2)) # adjust
-        corrplot::corrplot(cormat_mat, type = "lower", na.label = NA, outline = T, order = "hclust",
-                           tl.cex = 0.9, cl.cex = 0.55, tl.srt = 45, tl.col = "black", cl.ratio = 0.2,
-                           col = rev(corrplot::COL2('RdBu', 200)))
+        
+        # --- Dynamic label size adjustment ---
+        tl_size <- ifelse(n_feat > 15, 0.5,
+                          ifelse(n_feat > 10, 0.8, 1.2))
+        cl_size <- ifelse(n_feat > 15, 0.4,
+                          ifelse(n_feat > 10, 0.6, 1))
+        
+        png(file, width = 400 + 60 * n_feat, height = 400 + 60 * n_feat, res = 500)
+        par(mar = c(2, 2, 2, 2)) # adjust if needed
+        corrplot::corrplot(
+          cormat_mat, type = "lower", na.label = NA, outline = TRUE, order = "hclust",
+          tl.cex = tl_size, cl.cex = cl_size, tl.srt = 45, tl.col = "black", cl.ratio = 0.2,
+          col = rev(corrplot::COL2('RdBu', 200))
+        )
         dev.off()
       }
     }
   )
+  
 
     # Define reactiveVals first
     perf_het_val <- reactiveVal(NULL)
@@ -4103,22 +4123,6 @@ output$cor_matrix_download_ui <- renderUI({
       # All other cases: Spearman, Kendall, Biweight, or Pearson with >2 features
       downloadButton("cor_download_table", "Download Table")
     })
-
-
-
-
-
-    # output$cor_download_table_ui <- renderUI({
-    #   req(input$cor_run)
-    #   valid_methods <- c("pearson", "spearman", "kendall", "biweight")
-    #   if (!(input$cor_method %in% valid_methods)) return(NULL)
-    #
-    #   n_feat <- length(input$cor_features)
-    #   if (n_feat < 2) return(NULL)
-    #
-    #   downloadButton("cor_download_table", "Download Table")
-    # })
-
 
 ############################################################################################################
 ############################################################################################################
