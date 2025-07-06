@@ -451,15 +451,6 @@ function corScreenshotWithoutScatterBtn() {
                                          "Chi-square test" = "chisq",
                                          "Fisher’s exact test" = "fisher"),
                              selected = ""),
-                 # selectInput("posthoc_method_fisher", "Choose p-value adjustment method:",
-                 #             choices = c("Choose Methods" = "",
-                 #                         "Bonferroni" = "bonferroni",
-                 #                         "Benjamini-Hochberg (BH)" = "BH",
-                 #                         "Benjamini-Yekutieli (BY)" = "BY",
-                 #                         "FDR" = "fdr",
-                 #                         "Holm" = "holm",
-                 #                         "Hommel" = "hommel"),
-                 #             selected = ""),
                  actionButton("run_fisher", "Run Test", class = "btn-success"),
                  actionButton("plot_fisher", "Plot", class = "btn-primary")
                ),
@@ -612,8 +603,12 @@ function corScreenshotWithoutScatterBtn() {
                                                   plotOutput("lmm_hist_after"),
                                                   downloadButton("lmm_download_hist_after", "Download After")
                                                 )))),
-                              tabPanel("Test Result", verbatimTextOutput("lmm_result")),
+                              tabPanel("Test Result", 
+                                       uiOutput("lmm_warning_msg"),
+                                       uiOutput("lmm_id_warning_msg"),
+                                       verbatimTextOutput("lmm_result")),
                               tabPanel("Assumptions",
+                                       uiOutput("lmm_id_warning_msg_assump"),
                                        plotOutput("lmm_assump", height = "700px"),
                                        br(),
                                        br(),
@@ -621,9 +616,10 @@ function corScreenshotWithoutScatterBtn() {
                                        downloadButton("lmm_download_assump", "Download Assumption Plot")
                               ),
                               tabPanel("Effect Plot",
+                                       uiOutput("lmm_id_warning_msg_effect"),
                                        plotOutput("lmm_effect", height = "550px", width = "600px"),
                                        br(),
-                                       downloadButton("lmm_download_effect", "Download Effect Plot"))
+                                       uiOutput("lmm_download_effect"))
                             )
                           )
                         )
@@ -1212,19 +1208,19 @@ server <- function(input, output, session) {
     
     # ---- Required Input Checks (for Check Assumptions) ----
     if (is.null(input$file)) {
-      showNotification("Please upload a data file", type = "error")
+      showNotification(strong("Please upload a data file."), type = "error")
       return()
     }
     if (is.null(input$test_type) || input$test_type == "") {
-      showNotification("Please select a statistical test.", type = "error")
+      showNotification(strong("Please select a statistical test."), type = "error")
       return()
     }
     if (is.null(input$value_col) || input$value_col == "") {
-      showNotification("Please select a numeric value column.", type = "error")
+      showNotification(strong("Please select a numeric value column."), type = "error")
       return()
     }
     if (is.null(input$group_col) || input$group_col == "") {
-      showNotification("Please select a group/condition column.", type = "error")
+      showNotification(strong("Please select a group/condition column."), type = "error")
       return()
     }
     
@@ -1258,19 +1254,19 @@ server <- function(input, output, session) {
     # New: Minimum checks
     ngroups <- nlevels(df$group)
     if (input$test_type == "independent_ttest" && (ngroups != 2 || any(table(df$group) < 2))) {
-      showNotification("Independent t-test requires exactly 2 groups, each with at least 2 samples.", type = "error")
+      showNotification(strong("Independent t-test requires exactly 2 groups, each with at least 2 samples."), type = "error")
       return()
     }
     if (input$test_type == "dependent_ttest") {
       counts <- table(df$group)
       if (ngroups != 2 || length(unique(counts)) > 1 || any(counts < 3)) {
-        showNotification("Dependent t-test requires exactly 2 groups, each with at least 3 samples and equal size.", type = "error")
+        showNotification(strong("Dependent t-test requires exactly 2 groups, each with at least 3 samples and equal size."), type = "error")
         return()
       }
     }
     # ---- ANOVA GROUP CHECK ----
     if (input$test_type == "anova" && ngroups < 3) {
-      showNotification("One-way ANOVA requires a categorical variable with at least 3 groups.", type = "error")
+      showNotification(strong("One-way ANOVA requires a categorical variable with at least 3 groups."), type = "error")
       return()
     }
     processed_data(df)
@@ -1923,7 +1919,7 @@ output$levene_text <- renderPrint({
       return(NULL)
     }
     if (nlevels(df$group) < 2) {
-      showNotification("Grouping variable must have at least 2 groups.", type = "error")
+      showNotification(strong("Grouping variable must have at least 2 groups."), type = "error")
       return(NULL)
     }
     group_levels <- levels(df$group)
@@ -1933,7 +1929,7 @@ output$levene_text <- renderPrint({
     if (length(values1) != length(values2) || length(values1) < 3) return(NULL)
     diff <- values1 - values2
     if (length(diff) < 3 | length(diff) > 5000) {
-      showNotification("Need between 3 and 5000 paired values for normality testing (Shapiro-Wilk).", type = "error")
+      showNotification(strong("Need between 3 and 5000 paired values for normality testing (Shapiro-Wilk)."), type = "error")
       return(NULL)
     }
     shapiro_test(diff)
@@ -1947,12 +1943,12 @@ output$levene_text <- renderPrint({
       return(NULL)
     }
     if (nlevels(df$group) < 2) {
-      showNotification("Grouping variable must have at least 2 groups.", type = "error")
+      showNotification(strong("Grouping variable must have at least 2 groups."), type = "error")
       return(NULL)
     }
     group_sizes <- table(df$group)
     if (any(group_sizes < 3) | any(group_sizes > 5000)) {
-      showNotification("All groups must have between 3 and 5000 values for normality testing (Shapiro-Wilk).", type = "error")
+      showNotification(strong("All groups must have between 3 and 5000 values for normality testing (Shapiro-Wilk)."), type = "error")
       return(NULL)
     }
     df %>% group_by(group) %>% shapiro_test(value)
@@ -2010,7 +2006,7 @@ output$levene_text <- renderPrint({
   run_mannwhitney_test <- function(df) {
     ngroups <- nlevels(df$group)
     if (ngroups != 2) {
-      showNotification("Mann-Whitney U test requires exactly 2 groups. For more than 2 groups, use Kruskal-Wallis.", type = "error")
+      showNotification(strong("Mann-Whitney U test requires exactly 2 groups. For more than 2 groups, use Kruskal-Wallis."), type = "error")
       return(data.frame(p = NA))
     }
     tryCatch({
@@ -2022,7 +2018,7 @@ output$levene_text <- renderPrint({
   run_wilcoxon_signed_test <- function(df) {
     ngroups <- nlevels(df$group)
     if (ngroups != 2) {
-      showNotification("Wilcoxon signed-rank test requires exactly 2 groups.", type = "error")
+      showNotification(strong("Wilcoxon signed-rank test requires exactly 2 groups."), type = "error")
       return(data.frame(p = NA))
     }
     tryCatch({
@@ -2103,25 +2099,25 @@ output$levene_text <- renderPrint({
     
     # ---- Required Input Checks (before running test) ----
     if (is.null(input$file)) {
-      showNotification("Please upload a data file.", type = "error")
+      showNotification(strong("Please upload a data file."), type = "error")
       return()
     }
     if (is.null(input$test_type) || input$test_type == "") {
-      showNotification("Please select a statistical test.", type = "error")
+      showNotification(strong("Please select a statistical test."), type = "error")
       return()
     }
     if (is.null(input$value_col) || input$value_col == "") {
-      showNotification("Please select a numeric value column.", type = "error")
+      showNotification(strong("Please select a numeric value column."), type = "error")
       return()
     }
     if (is.null(input$group_col) || input$group_col == "") {
-      showNotification("Please select a group/condition column.", type = "error")
+      showNotification(strong("Please select a group/condition column."), type = "error")
       return()
     }
 
     # Check if assumptions must be checked
     if (input$test_type %in% parametric_tests && !assumptions_checked()) {
-      showNotification("Please Check the Assumptions first.", type = "error")
+      showNotification(strong("Please Check the Assumptions first."), type = "error")
       return(NULL)
     }
 
@@ -2138,7 +2134,7 @@ output$levene_text <- renderPrint({
       if (input$test_type == "kruskal") {
         ngroups <- nlevels(df$group)
         if (ngroups < 3) {
-          showNotification("Kruskal–Wallis requires at least 3 groups.", type = "error")
+          showNotification(strong("Kruskal–Wallis requires at least 3 groups."), type = "error")
           return(NULL)
         }}
       if (!assumptions_met()) {
@@ -2686,19 +2682,19 @@ output$statistical_significance_square <- renderUI({
   observeEvent(input$run_fisher, {
     # ---- Required Input Checks ----
     if (is.null(input$file_fisher)) {
-      showNotification("Please upload a data file.", type = "error")
+      showNotification(strong("Please upload a data file."), type = "error")
       return()
     }
     if (is.null(input$cat1) || input$cat1 == "") {
-      showNotification("Please select the first categorical variable.", type = "error")
+      showNotification(strong("Please select the first categorical variable."), type = "error")
       return()
     }
     if (is.null(input$cat2) || input$cat2 == "") {
-      showNotification("Please select the second categorical variable.", type = "error")
+      showNotification(strong("Please select the second categorical variable."), type = "error")
       return()
     }
     if (is.null(input$test_type_fisher) || input$test_type_fisher == "") {
-      showNotification("Please choose a test (Fisher or Chi-square) before running.", type = "error")
+      showNotification(strong("Please choose a test (Fisher or Chi-square) before running."), type = "error")
       return()
     }
     run_fisher_clicked(TRUE)
@@ -2709,7 +2705,7 @@ output$statistical_significance_square <- renderUI({
     }
     
     if (input$cat1 == "" || input$cat2 == "") {
-      showNotification("Please select both categorical variables.", type = "error")
+      showNotification(strong("Please select both categorical variables."), type = "error")
       return()
     }
 
@@ -2722,11 +2718,13 @@ output$statistical_significance_square <- renderUI({
     df[[input$cat2]] <- droplevels(df[[input$cat2]])
 
     if (!is.factor(df[[input$cat1]]) && !is.character(df[[input$cat1]])) {
-      showNotification("First variable must be categorical. Please select a categorical variable.", type = "error")
+      showNotification(strong("First variable must be categorical. Please select a categorical variable."), 
+                       type = "error")
       return()
     }
     if (!is.factor(df[[input$cat2]]) && !is.character(df[[input$cat2]])) {
-      showNotification("Second variable must be categorical. Please select a categorical variable.", type = "error")
+      showNotification(strong("Second variable must be categorical. Please select a categorical variable."), 
+                       type = "error")
       return()
     }
 
@@ -2959,7 +2957,7 @@ output$statistical_significance_square <- renderUI({
  ## plotting for Fisher or Chi square
   observeEvent(input$plot_fisher, {
     if (is.null(input$file_fisher)) {
-      showNotification("Please upload a data file.", type = "error")
+      showNotification(strong("Please upload a data file."), type = "error")
       return()
     }
     if (is.null(input$cat1) || input$cat1 == "") {
@@ -3122,7 +3120,7 @@ output$statistical_significance_square <- renderUI({
   observeEvent(input$cor_run, {
     # Explicit input checks
     if (is.null(input$cor_file)) {
-      showNotification("Please upload the data.", type = "error")
+      showNotification(strong("Please upload a data file."), type = "error")
       return()
     }
     if (is.null(input$cor_method) || input$cor_method == "") {
@@ -3233,7 +3231,7 @@ output$statistical_significance_square <- renderUI({
 
       # Make sure no negative/zero values remain
       if (any(df_num <= 0, na.rm = TRUE)) {
-        showNotification("CLR: All values must be positive.", type = "error")
+        showNotification(strong("CLR: All values must be positive."), type = "error")
         return(NULL)
       }
       df_clr <- compositions::clr(as.matrix(df_num)) %>%
@@ -4344,11 +4342,11 @@ output$cor_matrix_download_ui <- renderUI({
       df <- df %>% dplyr::select(all_of(model_vars)) %>% tidyr::drop_na()
       # Defensive: Check again
       if (input$lm_dep %in% input$lm_indep) {
-        showNotification("Dependent variable cannot be included as independent.", type = "error")
+        showNotification(strong("Dependent variable cannot be included as independent."), type = "error")
         return(NULL)
       }
       if (length(input$lm_indep) < 1) {
-        showNotification("Please select at least one independent variable.", type = "error")
+        showNotification(strong("Please select at least one independent variable."), type = "error")
         return(NULL)
       }
       df
@@ -4372,6 +4370,18 @@ output$cor_matrix_download_ui <- renderUI({
 
     # ---- LM: Run Model and Show Result Table with Interactions ----
     observeEvent(input$lm_run, {
+      if (is.null(input$lm_file)) {
+        showNotification(strong("Please upload a data file."), type = "error")
+        return()
+      }
+      if (is.null(input$lm_dep) || input$lm_dep == "") {
+        showNotification(strong("Please choose dependent variable."), type = "error")
+        return()
+      }
+      if (is.null(input$lm_indep) || length(input$lm_indep) < 1) {
+        showNotification(strong("Please choose independent variable(s)."), type = "error")
+        return()
+      }
       req(lm_model_data())
       updateTabsetPanel(session, inputId = "lm_tabs", selected = "Test Result")
 
@@ -4401,6 +4411,18 @@ output$cor_matrix_download_ui <- renderUI({
 
     # ---- LM: Check Assumptions and Show Diagnostic Plots ----
     observeEvent(input$lm_check, {
+      if (is.null(input$lm_file)) {
+        showNotification(strong("Please upload a data file."), type = "error")
+        return()
+      }
+      if (is.null(input$lm_dep) || input$lm_dep == "") {
+        showNotification(strong("Please choose dependent variable."), type = "error")
+        return()
+      }
+      if (is.null(input$lm_indep) || length(input$lm_indep) < 1) {
+        showNotification(strong("Please choose independent variable(s)."), type = "error")
+        return()
+      }
       req(lm_model_data())
       updateTabsetPanel(session, inputId = "lm_tabs", selected = "Assumptions")
 
@@ -4429,7 +4451,7 @@ output$cor_matrix_download_ui <- renderUI({
         df[[input$lm_dep]] <- y
       } else if (method == "log") {
         if (any(y <= 0, na.rm = TRUE)) {
-          showNotification("Log transform requires all values > 0.", type = "error")
+          showNotification(strong("Log transform requires all values > 0."), type = "error")
           return(NULL)
         }
         df[[input$lm_dep]] <- log(y)
@@ -4437,7 +4459,7 @@ output$cor_matrix_download_ui <- renderUI({
         df[[input$lm_dep]] <- bestNormalize::yeojohnson(y)$x.t
       } else if (method == "boxcox") {
         if (any(y <= 0, na.rm = TRUE)) {
-          showNotification("Box-Cox transform requires all values > 0.", type = "error")
+          showNotification(strong("Box-Cox transform requires all values > 0."), type = "error")
           return(NULL)
         }
         df[[input$lm_dep]] <- bestNormalize::boxcox(y)$x.t
@@ -4454,21 +4476,33 @@ output$cor_matrix_download_ui <- renderUI({
       model_vars <- c(input$lm_dep, input$lm_indep)
       df <- df %>% dplyr::select(all_of(model_vars)) %>% tidyr::drop_na()
       if (input$lm_dep %in% input$lm_indep) {
-        showNotification("Dependent variable cannot be included as independent.", type = "error")
+        showNotification(strong("Dependent variable cannot be included as independent."), type = "error")
         return(NULL)
       }
       if (length(input$lm_indep) < 1) {
-        showNotification("Please select at least one independent variable.", type = "error")
+        showNotification(strong("Please select at least one independent variable."), type = "error")
         return(NULL)
       }
       df
     })
 
     # ---- Only Render Histogram When Button Clicked ----
+    observe({
+      shinyjs::hide("download_hist_before")
+    })
     observeEvent(input$lm_check_norm, {
+      if (is.null(input$lm_file)) {
+        showNotification(strong("Please upload a data file."), type = "error")
+        return()
+      }
+      if (is.null(input$lm_dep) || input$lm_dep == "") {
+        showNotification(strong("Please choose dependent variable."), type = "error")
+        return()
+      }
       updateTabsetPanel(session, inputId = "lm_tabs", selected = "Dependent Variable Normality")
 
       output$lm_hist_before <- renderPlot({
+        shinyjs::show("download_hist_before")
         req(lm_data(), input$lm_dep)
         df <- lm_data()
         ggplot(df, aes_string(input$lm_dep)) +
@@ -4584,6 +4618,18 @@ output$cor_matrix_download_ui <- renderUI({
 
     # Automatically switch tab when “Plot Effects” is clicked
     observeEvent(input$lm_plot, {
+      if (is.null(input$lm_file)) {
+        showNotification(strong("Please upload a data file."), type = "error")
+        return()
+      }
+      if (is.null(input$lm_dep) || input$lm_dep == "") {
+        showNotification(strong("Please choose dependent variable."), type = "error")
+        return()
+      }
+      if (is.null(input$lm_indep) || length(input$lm_indep) < 1) {
+        showNotification(strong("Please choose independent variable(s)."), type = "error")
+        return()
+      }
       updateTabsetPanel(session, inputId = "lm_tabs", selected = "Effect Plot")
     })
 
@@ -4631,6 +4677,16 @@ output$cor_matrix_download_ui <- renderUI({
 
 ### ---------- Linear Mixed Effect Model -----------####
 
+lmm_vars <- reactive({
+  list(
+    dep = input$lmm_dep,
+    indep = input$lmm_indep,
+    re = input$lmm_re
+  )
+})
+
+    
+    
     # ---- LMM: Dependent Variable UI ----
     output$lmm_dep_ui <- renderUI({
       req(input$lmm_file)
@@ -4683,19 +4739,29 @@ output$cor_matrix_download_ui <- renderUI({
 
     # ---- LMM: Random Effects UI ----
 
-    observe({
+    observeEvent(list(input$lmm_file, input$lmm_indep), {
       req(input$lmm_file)
       df <- read.csv(input$lmm_file$datapath)
       fact_vars <- names(df)[sapply(df, function(x) is.factor(x) || is.character(x))]
+      indep <- input$lmm_indep
+      
+      # Exclude independent variables from random effect choices
+      choices <- setdiff(fact_vars, indep)
+      
+      # Preserve current selection if still valid
+      current <- input$lmm_re
+      still_valid <- intersect(current, choices)
+      
       updateSelectizeInput(
         session,
         "lmm_re",
-        choices = fact_vars,
-        selected = "",
+        choices = choices,
+        selected = still_valid,
         options = list(placeholder = 'Select variable'),
         server = TRUE
       )
     })
+    
 
 
 
@@ -4742,11 +4808,24 @@ output$cor_matrix_download_ui <- renderUI({
 
 
     # Button logic: when clicked, show tab and render plots
+    observe({
+      shinyjs::hide("lmm_download_hist_before")
+    })
+    
     observeEvent(input$lmm_check_norm, {
+      if (is.null(input$lmm_file)) {
+        showNotification(strong("Please upload a data file."), type = "error")
+        return()
+      }
+      if (is.null(input$lmm_dep) || input$lmm_dep == "") {
+        showNotification(strong("Please choose dependent variable."), type = "error")
+        return()
+      }
       updateTabsetPanel(session, inputId = "lmm_tabs", selected = "Dependent Variable Normality")
 
       # Histogram BEFORE transformation
       output$lmm_hist_before <- renderPlot({
+        shinyjs::show("lmm_download_hist_before")
         req(lmm_data(), input$lmm_dep)
         df <- lmm_data()
         ggplot(df, aes_string(input$lmm_dep)) +
@@ -4756,8 +4835,11 @@ output$cor_matrix_download_ui <- renderUI({
           labs(title = "Before Transformation", x = input$lmm_dep, y = "Density")
       })
 
+      shinyjs::hide("lmm_download_hist_before")
+      
       # Histogram AFTER transformation
       output$lmm_hist_after <- renderPlot({
+        shinyjs::show("lmm_download_hist_before")
         req(lmm_data(), input$lmm_dep)
         df <- lmm_data()
         x <- df[[input$lmm_dep]]
@@ -4876,7 +4958,75 @@ output$cor_matrix_download_ui <- renderUI({
 
       # ---- LMM: Check Assumptions and Show Diagnostic Plots ----
       observeEvent(input$lmm_check, {
+        
+        # Always clear the error output initially
+        output$lmm_id_warning_msg_assump <- renderUI({ NULL })
+        
+        if (is.null(input$lmm_file)) {
+          showNotification(strong("Please upload a data file."), type = "error")
+          return()
+        }
+        if (is.null(input$lmm_dep) || input$lmm_dep == "") {
+          showNotification(strong("Please choose dependent variable."), type = "error")
+          return()
+        }
+        if (is.null(input$lmm_indep) || length(input$lmm_indep) < 1) {
+          showNotification(strong("Please choose independent variable(s)."), type = "error")
+          return()
+        }
+        if (is.null(input$lmm_re) || length(input$lmm_re) < 1) {
+          showNotification(strong("Please choose random effect variable(s)."), type = "error")
+          return()
+        }
+        
+        # Always switch to the Assumptions tab first
         updateTabsetPanel(session, inputId = "lmm_tabs", selected = "Assumptions")
+        
+        # Check for identifier variable
+        prob_vars <- lmm_id_col_problem()
+        if (length(prob_vars) > 0) {
+          output$lmm_id_warning_msg_assump <- renderUI({
+            msg <- paste(
+              "The following variable(s) appear to be identifiers (each value is unique):",
+              paste(prob_vars, collapse = ", "),
+              ". Using such columns as fixed effects will cause model failure. Please remove them from the independent variables. ",
+              "Advice: Variables like patient ID, subject ID, or sample ID are not statistical predictors. Please remove them and try again."
+            )
+            div(
+              style = "background-color:#f8d7da; color:#721c24; padding:14px; border:1px solid #f5c6cb; border-radius:5px; margin-bottom:12px;",
+              icon("exclamation-circle", lib = "font-awesome"),
+              strong(" Model Error: "),
+              msg
+            )
+          })
+          output$lmm_assump <- renderPlot(NULL) # Always clear the plot too!
+          output$lmm_download_assump <- renderUI({ NULL }) 
+          return()
+        }
+        
+        # ---- ADD SINGLETON RANDOM EFFECT CHECK HERE ----
+        df <- lmm_data()
+        random_vars <- input$lmm_re
+        singleton_re <- lmm_singleton_random_effect(df, random_vars)
+        if (length(singleton_re) > 0) {
+          output$lmm_id_warning_msg_assump <- renderUI({
+            msg <- paste0(
+              "The selected random effect variable (e.g., ", paste(singleton_re, collapse = ", "), 
+              ") does not have repeated measurements (i.e., each level occurs only once). ",
+              "Linear mixed models require repeated measurements for each grouping factor. ",
+              "Please check your data or select another random effect."
+            )
+            div(
+              style = "background-color:#fff3cd; color:#856404; padding:14px; border:1px solid #ffeeba; border-radius:5px; margin-bottom:12px;",
+              icon("exclamation-triangle", lib = "font-awesome"),
+              strong(" Model Error: "),
+              msg
+            )
+          })
+          output$lmm_assump <- renderPlot(NULL)
+          output$lmm_download_assump <- renderUI({ NULL }) 
+          return()
+        }
 
 
       # Render diagnostic plots using performance::check_model
@@ -4900,8 +5050,15 @@ output$cor_matrix_download_ui <- renderUI({
 
       # ---- LMM: Run LMM and Show Tidy Result ----
     lmm_model <- reactive({
+      if (length(lmm_id_col_problem()) > 0) return(NULL)
       req(lmm_data(), input$lmm_dep, input$lmm_indep, input$lmm_re)
       df <- lmm_data()
+      problem_vars <- input$lmm_indep[
+        sapply(input$lmm_indep, function(var) length(unique(df[[var]])) == nrow(df))
+      ]
+      if (length(problem_vars) > 0) {
+        stop("Identifier variable(s) in independent variables: ", paste(problem_vars, collapse = ", "))
+      }
       dep_var <- input$lmm_dep
       trans_x <- switch(input$lmm_transform,
                         "log" = log(df[[dep_var]][df[[dep_var]] > 0]),
@@ -4919,26 +5076,161 @@ output$cor_matrix_download_ui <- renderUI({
       random_formula <- paste0("(1|", random_vars, ")", collapse = " + ")
       formula_string <- paste(dep_var, "~", fixed_formula, if (random_formula != "") paste("+", random_formula) else "")
       fml <- as.formula(formula_string)
-      lmerTest::lmer(fml, data = df)
-    })
-
-      output$lmm_result <- renderPrint({
-        req(lmm_model())
-        broom.mixed::tidy(lmm_model(), conf.int = TRUE) %>%
-          dplyr::filter(effect == "fixed")%>%
-          filter(!term %in% c("sd__(Intercept)", "sd__Observation")) %>%
-          dplyr::select(-c(effect, group)) %>%
-          dplyr::mutate(Sig = dplyr::case_when(
-            is.na(p.value) ~ "",
-            p.value < 0.001 ~ "***",
-            p.value < 0.01 ~ "**",
-            p.value < 0.05 ~ "*",
-            TRUE ~ "NS"
-          )) %>%
-          knitr::kable(align = "c", format = "simple")
+      
+      # Error handling
+      model_or_error <- tryCatch({
+        lmerTest::lmer(fml, data = df)
+      }, error = function(e) {
+        e
       })
+      
+      model_or_error
+    })
+    
+    
+    
+    
+    # Error
+    lmm_id_col_problem <- reactive({
+      req(lmm_data(), input$lmm_indep)
+      df <- lmm_data()
+      prob_vars <- input$lmm_indep[
+        sapply(input$lmm_indep, function(var) length(unique(df[[var]])) == nrow(df))
+      ]
+      prob_vars
+    })
+    
+    
+    # message o
+    lmm_id_error_message <- function(vars) {
+      paste(
+        "The following variable(s) appear to be identifiers (each value is unique):",
+        paste(vars, collapse = ","),
+        ". Using such columns as fixed effects will cause model failure. Please remove them from the independent variables."
+      )
+    }
+    
+    
+    lmm_singleton_random_effect <- function(df, random_vars) {
+      # Return vector of variable names with all unique values (no repeats)
+      random_vars[sapply(random_vars, function(var) length(unique(df[[var]])) == nrow(df))]
+    }
+    
+    
+    
+    
+    # Error message
+    output$lmm_warning_msg <- renderUI({
+      model <- lmm_model()
+      if (is.null(model)) return(invisible(NULL))
+      if (inherits(model, "error")) {
+        err_msg <- conditionMessage(model)
+        if (grepl("number of levels of each grouping factor must be < number of observations", err_msg)) {
+          div(
+            style = "background-color:#fff3cd; color:#856404; padding:14px; border:1px solid #ffeeba; border-radius:5px; margin-bottom:12px;",
+            icon("exclamation-triangle", lib = "font-awesome"),
+            strong(" Model Error: "),
+            "The selected random effect variable (e.g., Subject ID) does not have repeated measurements (i.e., each level occurs only once). Linear mixed models require repeated measurements for each grouping factor. Please check your data or select another random effect."
+          )
+        } else {
+          div(
+            style = "background-color:#f8d7da; color:#721c24; padding:14px; border:1px solid #f5c6cb; border-radius:5px; margin-bottom:12px;",
+            icon("exclamation-circle", lib = "font-awesome"),
+            strong(" Model Error: "),
+            err_msg
+          )
+        }
+      }
+    })
+    
+    lmm_id_col_warning <- reactive({
+      req(lmm_data(), input$lmm_indep)
+      df <- lmm_data()
+      problem_vars <- input$lmm_indep[
+        sapply(input$lmm_indep, function(var) length(unique(df[[var]])) == nrow(df))
+      ]
+      if (length(problem_vars) > 0) {
+        msg <- paste(
+          "The following variable(s) appear to be identifiers (each value is unique in the data):",
+          paste(problem_vars, collapse = ", "), 
+          ". Using such columns as fixed effects will cause model failure. Please remove them from the independent variables."
+        )
+        return(msg)
+      }
+      return(NULL)
+    })
+    
+    output$lmm_id_warning_msg <- renderUI({
+      prob_vars <- lmm_id_col_problem()
+      if (length(prob_vars) > 0) {
+        msg <- paste(
+          "The following variable(s) appear to be identifiers (each value is unique):",
+          paste(prob_vars, collapse = ", "),
+          ". Using such columns as fixed effects will cause model failure. Please remove them from the independent variables. ",
+          "Advice: Variables like patient ID, subject ID, or sample ID are not statistical predictors. Please remove them and try again."
+        )
+        div(
+          style = "background-color:#f8d7da; color:#721c24; padding:14px; border:1px solid #f5c6cb; border-radius:5px; margin-bottom:12px;",
+          icon("exclamation-circle", lib = "font-awesome"),
+          strong(" Model Error: "),
+          msg
+        )
+      }
+    })
+    
+    
+    
+
+    output$lmm_result <- renderPrint({
+      df <- lmm_data()
+      model <- lmm_model()
+      if (is.null(model)) return(invisible(NULL))
+      if (inherits(model, "error")) {
+        return(invisible(NULL)) # Do not print anything
+      }
+      
+      if ("infant_id" %in% input$lmm_indep) {
+        unique_n <- length(unique(df$infant_id))
+        nrows <- nrow(df)
+        if (unique_n == nrows) {
+          stop("infant_id cannot be used as a fixed effect if each level is unique.")
+        }
+      }
+      
+      # Only print tidy table if model succeeded
+      broom.mixed::tidy(model, conf.int = TRUE) %>%
+        dplyr::filter(effect == "fixed") %>%
+        filter(!term %in% c("sd__(Intercept)", "sd__Observation")) %>%
+        dplyr::select(-c(effect, group)) %>%
+        dplyr::mutate(Sig = dplyr::case_when(
+          is.na(p.value) ~ "",
+          p.value < 0.001 ~ "***",
+          p.value < 0.01 ~ "**",
+          p.value < 0.05 ~ "*",
+          TRUE ~ "NS"
+        )) %>%
+        knitr::kable(align = "c", format = "simple")
+    })
+    
+    
 
       observeEvent(input$lmm_run, {
+        if (is.null(input$lmm_file)) {
+          showNotification(strong("Please upload a data file"), type = "error")
+          return()
+        }
+        if (is.null(input$lmm_dep) || input$lmm_dep == "") {
+          showNotification(strong("Please choose dependent variable."), type = "error")
+          return()
+        }
+        if (is.null(input$lmm_indep) || length(input$lmm_indep) < 1) {
+          showNotification(strong("Please choose independent variable(s)."), type = "error")
+          return()
+        }
+        if (is.null(input$lmm_re) || length(input$lmm_re) < 1) {
+          showNotification(strong("Please choose random effect variable(s)."), type = "error")
+          return()
+        }
         updateTabsetPanel(session, inputId = "lmm_tabs", selected = "Test Result")
       })
 
@@ -4969,45 +5261,121 @@ output$cor_matrix_download_ui <- renderUI({
         lmerTest::lmer(fml, data = df)
       })
 
-      # Render the plot of fixed effect estimates with CI and significance color
-      output$lmm_effect <- renderPlot({
-        req(lmm_model_plot())
-        df <- broom.mixed::tidy(lmm_model_plot(), conf.int = TRUE) %>%
-          dplyr::filter(effect == "fixed") %>%
-          filter(!term %in% c("sd__(Intercept)", "sd__Observation")) %>%
-          dplyr::select(-c(effect, group)) %>%
-          dplyr::mutate(group = dplyr::case_when(
-            p.value < 0.05 & estimate > 0 ~ "sig_pos",
-            p.value < 0.05 & estimate < 0 ~ "sig_neg",
-            TRUE ~ "NS"
-          )) %>%
-          dplyr::filter(term != "(Intercept)")
-        ggplot(df, aes(x = estimate, y = term)) +
-          geom_vline(xintercept = 0, linetype = "dashed") +
-          geom_errorbarh(aes(xmin = conf.low, xmax = conf.high), height = 0.11, size = 0.4, col = "black") +
-          geom_point(aes(fill = group), color = "black", shape = 21, size = 3, show.legend = FALSE) +
-          scale_x_continuous(
-            limits = ~ c(-max(abs(.x)), max(abs(.x))),
-            expand = expansion(mult = 0.1)
-          ) +
-          scale_fill_manual(values = c("sig_pos" = "#377EB8", "sig_neg" = "#E41A1C", "NS" = "white")) +
-          labs(
-            x = "Estimate (95% CI)",
-            y = ""
-          ) +
-          theme_test() +
-          theme(axis.text.x = element_text(size = 12, colour = "black"),
-                axis.title.x = element_text(size = 14, face = "bold"),
-                axis.text.y = element_text(size = 12, colour = "black"))
-      })
+
+      
 
       observeEvent(input$lmm_plot, {
+        output$lmm_id_warning_msg_effect <- renderUI({ NULL })
+        if (is.null(input$lmm_file)) {
+          showNotification(strong("Please upload a data file"), type = "error")
+          return()
+        }
+        if (is.null(input$lmm_dep) || input$lmm_dep == "") {
+          showNotification(strong("Please choose dependent variable."), type = "error")
+          return()
+        }
+        if (is.null(input$lmm_indep) || length(input$lmm_indep) < 1) {
+          showNotification(strong("Please choose independent variable(s)."), type = "error")
+          return()
+        }
+        if (is.null(input$lmm_re) || length(input$lmm_re) < 1) {
+          showNotification(strong("Please choose random effect variable(s)."), type = "error")
+          return()
+        }
+        
+        
         updateTabsetPanel(session, inputId = "lmm_tabs", selected = "Effect Plot")
+        
+        prob_vars <- lmm_id_col_problem()
+        if (length(prob_vars) > 0) {
+          output$lmm_id_warning_msg_effect <- renderUI({
+            msg <- paste(
+              "The following variable(s) appear to be identifiers (each value is unique):",
+              paste(prob_vars, collapse = ", "),
+              ". Using such columns as fixed effects will cause model failure. Please remove them from the independent variables. ",
+              "Advice: Variables like patient ID, subject ID, or sample ID are not statistical predictors. Please remove them and try again."
+            )
+            div(
+              style = "background-color:#f8d7da; color:#721c24; padding:14px; border:1px solid #f5c6cb; border-radius:5px; margin-bottom:12px;",
+              icon("exclamation-circle", lib = "font-awesome"),
+              strong(" Model Error: "),
+              msg
+            )
+          })
+          output$lmm_effect <- renderPlot(NULL) # Clear the plot if error
+          output$lmm_download_effect <- renderUI({ NULL }) 
+          return()
+        }
+        # ---- SINGLETON RANDOM EFFECT CHECK ----
+        df <- lmm_data()
+        random_vars <- input$lmm_re
+        singleton_re <- lmm_singleton_random_effect(df, random_vars)
+        if (length(singleton_re) > 0) {
+          output$lmm_id_warning_msg_effect <- renderUI({
+            msg <- paste0(
+              "The selected random effect variable (e.g., ", paste(singleton_re, collapse = ", "), 
+              ") does not have repeated measurements (i.e., each level occurs only once). ",
+              "Linear mixed models require repeated measurements for each grouping factor. ",
+              "Please check your data or select another random effect."
+            )
+            div(
+              style = "background-color:#fff3cd; color:#856404; padding:14px; border:1px solid #ffeeba; border-radius:5px; margin-bottom:12px;",
+              icon("exclamation-triangle", lib = "font-awesome"),
+              strong(" Model Error: "),
+              msg
+            )
+          })
+          output$lmm_effect <- renderPlot(NULL)
+          output$lmm_download_effect <- renderUI({ NULL }) 
+          return()
+        }
+        
+        # Render the plot of fixed effect estimates with CI and significance color
+        output$lmm_effect <- renderPlot({
+          req(lmm_model_plot())
+          df <- broom.mixed::tidy(lmm_model_plot(), conf.int = TRUE) %>%
+            dplyr::filter(effect == "fixed") %>%
+            filter(!term %in% c("sd__(Intercept)", "sd__Observation")) %>%
+            dplyr::select(-c(effect, group)) %>%
+            dplyr::mutate(group = dplyr::case_when(
+              p.value < 0.05 & estimate > 0 ~ "sig_pos",
+              p.value < 0.05 & estimate < 0 ~ "sig_neg",
+              TRUE ~ "NS"
+            )) %>%
+            dplyr::filter(term != "(Intercept)")
+          ggplot(df, aes(x = estimate, y = term)) +
+            geom_vline(xintercept = 0, linetype = "dashed") +
+            geom_errorbarh(aes(xmin = conf.low, xmax = conf.high), height = 0.11, size = 0.4, col = "black") +
+            geom_point(aes(fill = group), color = "black", shape = 21, size = 3, show.legend = FALSE) +
+            scale_x_continuous(
+              limits = ~ c(-max(abs(.x)), max(abs(.x))),
+              expand = expansion(mult = 0.1)
+            ) +
+            scale_fill_manual(values = c("sig_pos" = "#377EB8", "sig_neg" = "#E41A1C", "NS" = "white")) +
+            labs(
+              x = "Estimate (95% CI)",
+              y = ""
+            ) +
+            theme_test() +
+            theme(axis.text.x = element_text(size = 12, colour = "black"),
+                  axis.title.x = element_text(size = 14, face = "bold"),
+                  axis.text.y = element_text(size = 12, colour = "black"))
+        })
+        
+        output$lmm_download_effect <- renderUI({
+          downloadButton("lmm_download_effect_real", "Download Effect Plot")
+        })
+        
       })
 
 
       # Download forest plot (LMM)
-      output$lmm_download_effect <- downloadHandler(
+      # Inside observer, after all checks:
+      output$lmm_download_effect <- renderUI({
+        downloadButton("lmm_download_effect_real", "Download Effect Plot")
+      })
+      
+      output$lmm_download_effect_real <- downloadHandler(
         filename = function() paste0("lmm_effect_plot_", Sys.Date(), ".png"),
         content = function(file) {
           req(lmm_model_plot())
@@ -5022,22 +5390,23 @@ output$cor_matrix_download_ui <- renderUI({
             )) %>%
             dplyr::filter(term != "(Intercept)")
           p <- ggplot(df, aes(x = estimate, y = term)) +
-              geom_vline(xintercept = 0, linetype = "dashed") +
-              geom_errorbarh(aes(xmin = conf.low, xmax = conf.high), height = 0.11, size = 0.4, col = "black") +
-              geom_point(aes(fill = group), color = "black", shape = 21, size = 3, show.legend = FALSE) +
-              scale_x_continuous(
-                limits = ~ c(-max(abs(.x)), max(abs(.x))),
-                expand = expansion(mult = 0.1)
-              ) +
-              scale_fill_manual(values = c("sig_pos" = "#377EB8", "sig_neg" = "#E41A1C", "NS" = "white")) +
-              labs(x = "Estimate (95% CI)", y = "") +
-              theme_test() +
-              theme(axis.text.x = element_text(size = 12, colour = "black"),
-                    axis.title.x = element_text(size = 14, face = "bold"),
-                    axis.text.y = element_text(size = 12, colour = "black"))
+            geom_vline(xintercept = 0, linetype = "dashed") +
+            geom_errorbarh(aes(xmin = conf.low, xmax = conf.high), height = 0.11, size = 0.4, col = "black") +
+            geom_point(aes(fill = group), color = "black", shape = 21, size = 3, show.legend = FALSE) +
+            scale_x_continuous(
+              limits = ~ c(-max(abs(.x)), max(abs(.x))),
+              expand = expansion(mult = 0.1)
+            ) +
+            scale_fill_manual(values = c("sig_pos" = "#377EB8", "sig_neg" = "#E41A1C", "NS" = "white")) +
+            labs(x = "Estimate (95% CI)", y = "") +
+            theme_test() +
+            theme(axis.text.x = element_text(size = 12, colour = "black"),
+                  axis.title.x = element_text(size = 14, face = "bold"),
+                  axis.text.y = element_text(size = 12, colour = "black"))
           ggsave(file, p, width = 7, height = 6, dpi = 600)
         }
       )
+      
 
 ##############################################################################################################
 ##############################################################################################################
@@ -5113,6 +5482,18 @@ output$cor_matrix_download_ui <- renderUI({
 
       # ---- Logistic Regression: Run Model and Show Result Table with Interactions ----
       observeEvent(input$log_run, {
+        if (is.null(input$log_file)) {
+          showNotification(strong("Please upload a data file."), type = "error")
+          return()
+        }
+        if (is.null(input$log_dep) || input$log_dep == "") {
+          showNotification(strong("Please choose dependent variable."), type = "error")
+          return()
+        }
+        if (is.null(input$log_indep) || length(input$log_indep) < 1) {
+          showNotification(strong("Please choose independent variable(s)."), type = "error")
+          return()
+        }
         req(log_model_data())
         updateTabsetPanel(session, inputId = "log_tabs", selected = "Test Result")
 
@@ -5121,11 +5502,36 @@ output$cor_matrix_download_ui <- renderUI({
           main_effects <- input$log_indep
           interaction_terms <- NULL
           if (!is.null(input$log_interact) && length(input$log_interact) > 0) {
-            interaction_terms <- gsub(":", " * ", input$log_interact)  # "A:B" -> "A * B"
+            interaction_terms <- gsub(":", " * ", input$log_interact)
           }
           rhs <- c(main_effects, interaction_terms)
           fml <- as.formula(paste(input$log_dep, "~", paste(rhs, collapse = " + ")))
-          glm(fml, data = df, family = binomial) %>%
+          
+          warning_shown <- FALSE
+          mod <- withCallingHandlers(
+            glm(fml, data = df, family = binomial),
+            warning = function(w) {
+              if (grepl("fitted probabilities numerically 0 or 1", conditionMessage(w)) && !warning_shown) {
+                showNotification(
+                  div(
+                    style = "background-color:#fff3cd; color:#856404; padding:14px; border:1px solid #ffeeba; border-radius:5px;",
+                    icon("exclamation-triangle", lib = "font-awesome"),
+                    strong("Model warning:"),
+                    " Some variables in your data can perfectly predict the outcome. This can make the statistical results unreliable.",
+                    br(),
+                    "What you can do: Try removing variables or combining categories so no single variable always predicts the result."
+                  ),
+                  type = "warning"
+                )
+                warning_shown <<- TRUE
+              }
+              invokeRestart("muffleWarning")
+            }
+          )
+          
+          if (is.null(mod)) return(invisible(NULL))
+          
+          mod %>%
             broom::tidy(conf.int = TRUE) %>%
             dplyr::mutate(Sig = dplyr::case_when(
               is.na(p.value) ~ "",
@@ -5136,6 +5542,7 @@ output$cor_matrix_download_ui <- renderUI({
             )) %>%
             knitr::kable(align = "c", format = "simple")
         })
+        
       })
 
       # ---- Logistic Regression: Reactive for Final Model Data (checks and subset) ----
@@ -5146,18 +5553,18 @@ output$cor_matrix_download_ui <- renderUI({
         df <- df %>% dplyr::select(all_of(model_vars)) %>% tidyr::drop_na()
 
         if (input$log_dep %in% input$log_indep) {
-          showNotification("Dependent variable cannot be included as independent.", type = "error")
+          showNotification(strong("Dependent variable cannot be included as independent."), type = "error")
           return(NULL)
         }
         if (length(input$log_indep) < 1) {
-          showNotification("Please select at least one independent variable.", type = "error")
+          showNotification(strong("Please select at least one independent variable."), type = "error")
           return(NULL)
         }
 
         # ---- Recode dependent variable to 0/1 if binary factor ----
         df[[input$log_dep]] <- as.factor(df[[input$log_dep]])
         if (length(levels(df[[input$log_dep]])) != 2) {
-          showNotification("Dependent variable must have exactly 2 levels for logistic regression.", type = "error")
+          showNotification(strong("Dependent variable must have exactly 2 levels for logistic regression."), type = "error")
           return(NULL)
         }
         df[[input$log_dep]] <- as.numeric(df[[input$log_dep]]) - 1
@@ -5168,6 +5575,18 @@ output$cor_matrix_download_ui <- renderUI({
 
       # ---- Logistic Regression: Check Assumptions and Show Diagnostic Plots ----
       observeEvent(input$log_check, {
+        if (is.null(input$log_file)) {
+          showNotification(strong("Please upload a data file."), type = "error")
+          return()
+        }
+        if (is.null(input$log_dep) || input$log_dep == "") {
+          showNotification(strong("Please choose dependent variable."), type = "error")
+          return()
+        }
+        if (is.null(input$log_indep) || length(input$log_indep) < 1) {
+          showNotification(strong("Please choose independent variable(s)."), type = "error")
+          return()
+        }
         req(log_model_data())
         updateTabsetPanel(session, inputId = "log_tabs", selected = "Assumptions")
 
@@ -5235,6 +5654,18 @@ output$cor_matrix_download_ui <- renderUI({
 
       # ---- Logistic Regression: Auto-switch to Effect Plot Tab ----
       observeEvent(input$log_plot, {
+        if (is.null(input$log_file)) {
+          showNotification(strong("Please upload a data file."), type = "error")
+          return()
+        }
+        if (is.null(input$log_dep) || input$log_dep == "") {
+          showNotification(strong("Please choose dependent variable."), type = "error")
+          return()
+        }
+        if (is.null(input$log_indep) || length(input$log_indep) < 1) {
+          showNotification(strong("Please choose independent variable(s)."), type = "error")
+          return()
+        }
         updateTabsetPanel(session, inputId = "log_tabs", selected = "Effect Plot")
       })
 
@@ -5399,6 +5830,18 @@ output$cor_matrix_download_ui <- renderUI({
 
       # ---- Negative Binomial: Run Model and Show Result Table ----
       observeEvent(input$nb_run, {
+        if (is.null(input$nb_file)) {
+          showNotification(strong("Please upload a data file."), type = "error")
+          return()
+        }
+        if (is.null(input$nb_dep) || input$nb_dep == "") {
+          showNotification(strong("Please choose dependent variable."), type = "error")
+          return()
+        }
+        if (is.null(input$nb_indep) || length(input$nb_indep) < 1) {
+          showNotification(strong("Please choose independent variable(s)."), type = "error")
+          return()
+        }
         req(nb_model_data())
         updateTabsetPanel(session, inputId = "nb_tabs", selected = "Test Result")
 
@@ -5429,6 +5872,18 @@ output$cor_matrix_download_ui <- renderUI({
 
       # ---- Negative Binomial: Diagnostic Plot ----
       observeEvent(input$nb_check, {
+        if (is.null(input$nb_file)) {
+          showNotification(strong("Please upload a data file."), type = "error")
+          return()
+        }
+        if (is.null(input$nb_dep) || input$nb_dep == "") {
+          showNotification(strong("Please choose dependent variable."), type = "error")
+          return()
+        }
+        if (is.null(input$nb_indep) || length(input$nb_indep) < 1) {
+          showNotification(strong("Please choose independent variable(s)."), type = "error")
+          return()
+        }
         req(nb_model_data())
         updateTabsetPanel(session, inputId = "nb_tabs", selected = "Assumptions")
 
@@ -5450,45 +5905,63 @@ output$cor_matrix_download_ui <- renderUI({
       })
 
       # ---- Negative Binomial: Render Effect Plot (Manual) ----
-      output$nb_effect <- renderPlot({
-        req(nb_model_data(), input$nb_dep, input$nb_indep)
-        df <- nb_model_data()
-        main_effects <- input$nb_indep
-        interaction_terms <- NULL
-
-        if (!is.null(input$nb_interact) && length(input$nb_interact) > 0) {
-          interaction_terms <- gsub(":", " * ", input$nb_interact)
+      
+      observeEvent(input$nb_plot, {
+        if (is.null(input$nb_file)) {
+          showNotification(strong("Please upload a data file."), type = "error")
+          return()
         }
-
-        rhs <- c(main_effects, interaction_terms)
-        fml <- as.formula(paste(input$nb_dep, "~", paste(rhs, collapse = " + ")))
-        mod <- MASS::glm.nb(fml, data = df)
-
-        b <- broom::tidy(mod, conf.int = TRUE) %>%
-          dplyr::filter(!is.na(conf.low), !is.na(conf.high), !is.na(estimate)) %>%
-          dplyr::mutate(group = dplyr::case_when(
-            p.value < 0.05 & estimate > 0 ~ "sig_pos",
-            p.value < 0.05 & estimate < 0 ~ "sig_neg",
-            TRUE ~ "NS"
-          )) %>%
-          dplyr::filter(!is.na(conf.low), !is.na(conf.high)) %>%
-          filter(term != "(Intercept)")
-
-        ggplot(b, aes(x = estimate, y = term)) +
-          geom_vline(xintercept = 0, linetype = "dashed") +
-          geom_errorbarh(aes(xmin = conf.low, xmax = conf.high), height = 0.11, size = 0.4, color = "black") +
-          geom_point(aes(fill = group), color = "black", shape = 21, size = 2.5, alpha = 1, show.legend = FALSE) +
-          scale_x_continuous(limits = ~ c(-max(abs(.x)), max(abs(.x))), expand = expansion(mult = 0.1)) +
-          scale_fill_manual(values = c("sig_pos" = "#377EB8", "sig_neg" = "#E41A1C", "NS" = "white")) +
-          labs(x = "Estimate (95% CI)", y = "") +
-          theme_test() +
-          theme(
-            axis.text.x = element_text(size = 12, colour = "black"),
-            axis.title.x = element_text(size = 14, face = "bold"),
-            axis.text.y = element_text(size = 12, colour = "black"),
-            axis.title.y = element_text(size = 14, face = "bold")
-          )
+        if (is.null(input$nb_dep) || input$nb_dep == "") {
+          showNotification(strong("Please choose dependent variable."), type = "error")
+          return()
+        }
+        if (is.null(input$nb_indep) || length(input$nb_indep) < 1) {
+          showNotification(strong("Please choose independent variable(s)."), type = "error")
+          return()
+        }
+        req(nb_model_data())
+        updateTabsetPanel(session, inputId = "nb_tabs", selected = "Effect Plot")
+        
+        output$nb_effect <- renderPlot({
+          df <- nb_model_data()
+          main_effects <- input$nb_indep
+          interaction_terms <- NULL
+          
+          if (!is.null(input$nb_interact) && length(input$nb_interact) > 0) {
+            interaction_terms <- gsub(":", " * ", input$nb_interact)
+          }
+          
+          rhs <- c(main_effects, interaction_terms)
+          fml <- as.formula(paste(input$nb_dep, "~", paste(rhs, collapse = " + ")))
+          mod <- MASS::glm.nb(fml, data = df)
+          
+          b <- broom::tidy(mod, conf.int = TRUE) %>%
+            dplyr::filter(!is.na(conf.low), !is.na(conf.high), !is.na(estimate)) %>%
+            dplyr::mutate(group = dplyr::case_when(
+              p.value < 0.05 & estimate > 0 ~ "sig_pos",
+              p.value < 0.05 & estimate < 0 ~ "sig_neg",
+              TRUE ~ "NS"
+            )) %>%
+            dplyr::filter(!is.na(conf.low), !is.na(conf.high)) %>%
+            filter(term != "(Intercept)")
+          
+          ggplot(b, aes(x = estimate, y = term)) +
+            geom_vline(xintercept = 0, linetype = "dashed") +
+            geom_errorbarh(aes(xmin = conf.low, xmax = conf.high), height = 0.11, size = 0.4, color = "black") +
+            geom_point(aes(fill = group), color = "black", shape = 21, size = 2.5, alpha = 1, show.legend = FALSE) +
+            scale_x_continuous(limits = ~ c(-max(abs(.x)), max(abs(.x))), expand = expansion(mult = 0.1)) +
+            scale_fill_manual(values = c("sig_pos" = "#377EB8", "sig_neg" = "#E41A1C", "NS" = "white")) +
+            labs(x = "Estimate (95% CI)", y = "") +
+            theme_test() +
+            theme(
+              axis.text.x = element_text(size = 12, colour = "black"),
+              axis.title.x = element_text(size = 14, face = "bold"),
+              axis.text.y = element_text(size = 12, colour = "black"),
+              axis.title.y = element_text(size = 14, face = "bold")
+            )
+        })
       })
+      
 
       # ---- Negative Binomial: Download Effect Plot ----
       output$nb_download_effect <- downloadHandler(
@@ -5535,20 +6008,6 @@ output$cor_matrix_download_ui <- renderUI({
         }
       )
 
-      # ---- Negative Binomial: Tab Switch on Model Run ----
-      observeEvent(input$nb_run, {
-        updateTabsetPanel(session, inputId = "nb_tabs", selected = "Test Result")
-      })
-
-      # ---- Negative Binomial: Tab Switch on Assumption Check ----
-      observeEvent(input$nb_check, {
-        updateTabsetPanel(session, inputId = "nb_tabs", selected = "Assumptions")
-      })
-
-      # ---- Negative Binomial: Tab Switch on Effect Plot ----
-      observeEvent(input$nb_plot, {
-        updateTabsetPanel(session, inputId = "nb_tabs", selected = "Effect Plot")
-      })
 
       # ---- Negative Binomial: Download Assumption Plot as PDF ----
       output$nb_download_assump <- downloadHandler(
@@ -5644,6 +6103,18 @@ output$cor_matrix_download_ui <- renderUI({
 
       # ---- Multinomial Regression: Run Model and Show Result Table ----
       observeEvent(input$multi_run, {
+        if (is.null(input$multi_file)) {
+          showNotification(strong("Please upload a data file."), type = "error")
+          return()
+        }
+        if (is.null(input$multi_dep) || input$multi_dep == "") {
+          showNotification(strong("Please choose dependent variable."), type = "error")
+          return()
+        }
+        if (is.null(input$multi_indep) || length(input$multi_indep) < 1) {
+          showNotification(strong("Please choose independent variable(s)."), type = "error")
+          return()
+        }
         req(multi_model_data())
         updateTabsetPanel(session, inputId = "multi_tabs", selected = "Test Result")
 
@@ -5692,7 +6163,7 @@ output$cor_matrix_download_ui <- renderUI({
         # Dependent must be a factor with 3+ levels
         df[[input$multi_dep]] <- as.factor(df[[input$multi_dep]])
         if (length(levels(df[[input$multi_dep]])) < 3) {
-          showNotification("Dependent variable must have 3 or more levels.", type = "error")
+          showNotification(strong("Dependent variable must have 3 or more levels."), type = "error")
           return(NULL)
         }
 
@@ -5700,22 +6171,36 @@ output$cor_matrix_download_ui <- renderUI({
       })
 
       # ---- Multinomial Regression: Assumption Plot ----
-      output$multi_assump <- renderPlot({
-        req(multi_model_data(), input$multi_dep, input$multi_indep)
-
-        df <- multi_model_data()
-        main_effects <- input$multi_indep
-        interaction_terms <- NULL
-
-        if (!is.null(input$multi_interact) && length(input$multi_interact) > 0) {
-          interaction_terms <- gsub(":", " * ", input$multi_interact)
+      observeEvent(input$multi_check, {
+        if (is.null(input$multi_file)) {
+          showNotification(strong("Please upload a data file."), type = "error")
+          return()
         }
-
-        rhs <- c(main_effects, interaction_terms)
-        fml <- as.formula(paste(input$multi_dep, "~", paste(rhs, collapse = " + ")))
-        mod <- nnet::multinom(fml, data = df, trace = FALSE)
-
-        performance::check_model(mod)
+        if (is.null(input$multi_dep) || input$multi_dep == "") {
+          showNotification(strong("Please choose dependent variable."), type = "error")
+          return()
+        }
+        if (is.null(input$multi_indep) || length(input$multi_indep) < 1) {
+          showNotification(strong("Please choose independent variable(s)."), type = "error")
+          return()
+        }
+        req(multi_model_data())
+        updateTabsetPanel(session, inputId = "multi_tabs", selected = "Assumptions")
+        
+        output$multi_assump <- renderPlot({
+          df <- multi_model_data()
+          main_effects <- input$multi_indep
+          interaction_terms <- NULL
+          
+          if (!is.null(input$multi_interact) && length(input$multi_interact) > 0) {
+            interaction_terms <- gsub(":", " * ", input$multi_interact)
+          }
+          
+          rhs <- c(main_effects, interaction_terms)
+          fml <- as.formula(paste(input$multi_dep, "~", paste(rhs, collapse = " + ")))
+          mod <- nnet::multinom(fml, data = df, trace = FALSE)
+          performance::check_model(mod, residual_type = "normal")
+        })
       })
 
       # ---- Multinomial Regression: Download Assumption Plot ----
@@ -5742,17 +6227,6 @@ output$cor_matrix_download_ui <- renderUI({
         },
         contentType = "application/pdf"
       )
-
-      # ---- Multinomial Regression: Tab Switch on Run ----
-      observeEvent(input$multi_run, {
-        updateTabsetPanel(session, inputId = "multi_tabs", selected = "Test Result")
-      })
-      # ---- Multinomial Regression: Tab Switch on Assumption Check ----
-      observeEvent(input$multi_check, {
-        updateTabsetPanel(session, inputId = "multi_tabs", selected = "Assumptions")
-      })
-
-
 
 
 } # end server
