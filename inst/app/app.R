@@ -2961,11 +2961,11 @@ output$statistical_significance_square <- renderUI({
       return()
     }
     if (is.null(input$cat1) || input$cat1 == "") {
-      showNotification("Please select the first categorical variable.", type = "error")
+      showNotification(strong("Please select the first categorical variable."), type = "error")
       return()
     }
     if (is.null(input$cat2) || input$cat2 == "") {
-      showNotification("Please select the second categorical variable.", type = "error")
+      showNotification(strong("Please select the second categorical variable."), type = "error")
       return()
     }
 
@@ -3124,7 +3124,7 @@ output$statistical_significance_square <- renderUI({
       return()
     }
     if (is.null(input$cor_method) || input$cor_method == "") {
-      showNotification("Please choose the test.", type = "error")
+      showNotification(strong("Please choose the test."), type = "error")
       return()
     }
     
@@ -3768,7 +3768,7 @@ output$statistical_significance_square <- renderUI({
       div(
         style = "background-color:#fff3cd; color:#856404; padding:14px; border:1px solid #ffeeba; border-radius:5px; margin-top:8px; margin-bottom:12px;",
         icon("exclamation-triangle", lib = "font-awesome"),
-        "You selected more than 10 features. View full results by downloading tables below."
+        strong("You selected more than 10 features. View full results by downloading tables below.")
       )
       
     }
@@ -4060,7 +4060,7 @@ output$cor_matrix_download_ui <- renderUI({
           return(div(
             style = "background-color:#fff3cd; color:#856404; padding:14px; border:1px solid #ffeeba; border-radius:5px; margin-top:8px; margin-bottom:12px;",
             icon("exclamation-triangle", lib = "font-awesome"),
-            "Heatmap only available for 5–20 features."
+            strong("Heatmap only available for 5–20 features.")
           ))
         } else {
           plotOutput("cor_heatmap")
@@ -4073,7 +4073,7 @@ output$cor_matrix_download_ui <- renderUI({
       return(div(
         style = "background-color:#fff3cd; color:#856404; padding:14px; border:1px solid #ffeeba; border-radius:5px; margin-top:8px; margin-bottom:12px;",
         icon("exclamation-triangle", lib = "font-awesome"),
-        "Heatmap only available for 5–20 features."
+        strong("Heatmap only available for 5–20 features.")
       ))
     }
 
