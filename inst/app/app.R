@@ -451,24 +451,26 @@ function corScreenshotWithoutScatterBtn() {
                                          "Chi-square test" = "chisq",
                                          "Fisher’s exact test" = "fisher"),
                              selected = ""),
-                 selectInput("posthoc_method_fisher", "Choose p-value adjustment method:",
-                             choices = c("Choose Methods" = "",
-                                         "Bonferroni" = "bonferroni",
-                                         "Benjamini-Hochberg (BH)" = "BH",
-                                         "Benjamini-Yekutieli (BY)" = "BY",
-                                         "FDR" = "fdr",
-                                         "Holm" = "holm",
-                                         "Hommel" = "hommel"),
-                             selected = ""),
+                 # selectInput("posthoc_method_fisher", "Choose p-value adjustment method:",
+                 #             choices = c("Choose Methods" = "",
+                 #                         "Bonferroni" = "bonferroni",
+                 #                         "Benjamini-Hochberg (BH)" = "BH",
+                 #                         "Benjamini-Yekutieli (BY)" = "BY",
+                 #                         "FDR" = "fdr",
+                 #                         "Holm" = "holm",
+                 #                         "Hommel" = "hommel"),
+                 #             selected = ""),
                  actionButton("run_fisher", "Run Test", class = "btn-success"),
                  actionButton("plot_fisher", "Plot", class = "btn-primary")
                ),
                mainPanel(
                  verbatimTextOutput("fisher_chisq_result"),
                  uiOutput("fisher_chisq_square"),
+                 br(),
+                 uiOutput("posthoc_method_ui"),
                  verbatimTextOutput("posthoc_result_fisher"),
                  plotOutput("fisher_plot"),
-                 downloadButton("download_fisher_plot", "Download Plot"),
+                 downloadButton("download_fisher_plot", "Download Plot", ),
                  uiOutput("chi_fisher_warning")
                )
              )
@@ -1207,6 +1209,25 @@ server <- function(input, output, session) {
 
   # --- Prepare data for assumptions/testing ---
   observeEvent(input$check_assumptions, {
+    
+    # ---- Required Input Checks (for Check Assumptions) ----
+    if (is.null(input$file)) {
+      showNotification("Please upload a data file", type = "error")
+      return()
+    }
+    if (is.null(input$test_type) || input$test_type == "") {
+      showNotification("Please select a statistical test.", type = "error")
+      return()
+    }
+    if (is.null(input$value_col) || input$value_col == "") {
+      showNotification("Please select a numeric value column.", type = "error")
+      return()
+    }
+    if (is.null(input$group_col) || input$group_col == "") {
+      showNotification("Please select a group/condition column.", type = "error")
+      return()
+    }
+    
     assumptions_checked(TRUE)
     req(data(), input$value_col, input$group_col)
     df0 <- data()
@@ -2079,6 +2100,24 @@ output$levene_text <- renderPrint({
 
     # Use the correct test type values as in your UI
     parametric_tests <- c("independent_ttest", "dependent_ttest", "anova")
+    
+    # ---- Required Input Checks (before running test) ----
+    if (is.null(input$file)) {
+      showNotification("Please upload a data file.", type = "error")
+      return()
+    }
+    if (is.null(input$test_type) || input$test_type == "") {
+      showNotification("Please select a statistical test.", type = "error")
+      return()
+    }
+    if (is.null(input$value_col) || input$value_col == "") {
+      showNotification("Please select a numeric value column.", type = "error")
+      return()
+    }
+    if (is.null(input$group_col) || input$group_col == "") {
+      showNotification("Please select a group/condition column.", type = "error")
+      return()
+    }
 
     # Check if assumptions must be checked
     if (input$test_type %in% parametric_tests && !assumptions_checked()) {
@@ -2645,6 +2684,23 @@ output$statistical_significance_square <- renderUI({
 
   ## Run the test when button clicked
   observeEvent(input$run_fisher, {
+    # ---- Required Input Checks ----
+    if (is.null(input$file_fisher)) {
+      showNotification("Please upload a data file.", type = "error")
+      return()
+    }
+    if (is.null(input$cat1) || input$cat1 == "") {
+      showNotification("Please select the first categorical variable.", type = "error")
+      return()
+    }
+    if (is.null(input$cat2) || input$cat2 == "") {
+      showNotification("Please select the second categorical variable.", type = "error")
+      return()
+    }
+    if (is.null(input$test_type_fisher) || input$test_type_fisher == "") {
+      showNotification("Please choose a test (Fisher or Chi-square) before running.", type = "error")
+      return()
+    }
     run_fisher_clicked(TRUE)
     req(fisher_data(), input$cat1, input$cat2, input$test_type_fisher)
     df <- fisher_data()
@@ -2764,11 +2820,13 @@ output$statistical_significance_square <- renderUI({
       }
 
       if (!more_than_2) {
-        cat("Post hoc pairwise comparisons are only available when there are more than two groups in at least one variable.")
+        return(invisible(NULL)) # Show nothing
       } else if (is.na(pval) || pval >= 0.05) {
-        cat("Post hoc pairwise comparisons are only available if the test was significant.")
+        return(invisible(NULL)) # Also show nothing here, since UI already tells user why
+      } else if (input$posthoc_method_fisher == "" || is.null(input$posthoc_method_fisher)) {
+        cat("Select a p-value adjustment method to view post hoc pairwise comparisons.")
       } else {
-        # test is significant and more than 2 groups
+        # test is significant, more than 2 groups, and method is selected
         p_adj_method <- input$posthoc_method_fisher
         if (input$test_type_fisher == "chisq") {
           res <- tryCatch(
@@ -2787,8 +2845,56 @@ output$statistical_significance_square <- renderUI({
           cat("Could not compute pairwise post hoc test. Check your data for missing values or errors.")
         }
       }
+      
     })
 
+  
+    output$posthoc_method_ui <- renderUI({
+      req(run_fisher_clicked(), input$cat1, input$cat2, input$test_type_fisher)
+      df <- fisher_data()
+      if (!is.null(input$fisher_timepoint) && input$fisher_timepoint != "" && "timepoint" %in% names(df)) {
+        df <- dplyr::filter(df, timepoint == input$fisher_timepoint)
+      }
+      tab <- tryCatch({
+        df %>%
+          dplyr::select(.data[[input$cat1]], .data[[input$cat2]]) %>%
+          tidyr::drop_na() %>%
+          table()
+      }, error = function(e) NULL)
+      if (is.null(tab)) return(NULL)
+      count1 <- nlevels(droplevels(as.factor(df[[input$cat1]])))
+      count2 <- nlevels(droplevels(as.factor(df[[input$cat2]])))
+      more_than_2 <- (count1 > 2 | count2 > 2)
+      pval <- tryCatch({
+        if (input$test_type_fisher == "chisq") {
+          rstatix::chisq_test(tab)$p[1]
+        } else {
+          rstatix::fisher_test(tab)$p[1]
+        }
+      }, error = function(e) NA_real_)
+      if (!more_than_2) {
+        return(NULL)   # Do not show anything
+      } else if (is.na(pval) || pval >= 0.05) {
+        return(tags$div(
+          style = "background-color:#fff3cd; color:#856404; padding:14px; border:1px solid #ffeeba; border-radius:5px; margin-bottom:12px;",
+          strong("Post hoc pairwise comparisons are only available if the test was significant.")
+        ))
+      } else {
+        return(selectInput("posthoc_method_fisher", strong("Choose p-value adjustment method:"),
+                           choices = c("Choose Methods" = "",
+                                       "Bonferroni" = "bonferroni",
+                                       "Benjamini-Hochberg (BH)" = "BH",
+                                       "Benjamini-Yekutieli (BY)" = "BY",
+                                       "FDR" = "fdr",
+                                       "Holm" = "holm",
+                                       "Hommel" = "hommel"),
+                           selected = input$posthoc_method_fisher
+        ))
+      }
+    })
+    
+    
+    
 
   })
 
@@ -2847,10 +2953,23 @@ output$statistical_significance_square <- renderUI({
     }
   })
 
-
+  # Hide download button
+  shinyjs::hide("download_fisher_plot")
+  
  ## plotting for Fisher or Chi square
   observeEvent(input$plot_fisher, {
-    if (!run_fisher_clicked()) return(NULL)
+    if (is.null(input$file_fisher)) {
+      showNotification("Please upload a data file.", type = "error")
+      return()
+    }
+    if (is.null(input$cat1) || input$cat1 == "") {
+      showNotification("Please select the first categorical variable.", type = "error")
+      return()
+    }
+    if (is.null(input$cat2) || input$cat2 == "") {
+      showNotification("Please select the second categorical variable.", type = "error")
+      return()
+    }
 
     req(fisher_data(), input$cat1, input$cat2)
     df <- fisher_data()
@@ -2883,9 +3002,18 @@ output$statistical_significance_square <- renderUI({
         theme(axis.text.y = element_text(size = 12, colour = "black")) +
         theme(legend.text=element_text(size=12))
     })
+    # Show download button after plot is made
+    shinyjs::show("download_fisher_plot")
   })
 
-
+# If the user changes variables or uploads a new file, hide the button again
+  observeEvent(list(input$file_fisher, input$cat1, input$cat2), {
+    shinyjs::hide("download_fisher_plot")
+    output$fisher_plot <- renderPlot({ NULL }) # optional: clear plot
+  })
+  
+  
+  
   ## Download for Fisher or Chi square
   output$download_fisher_plot <- downloadHandler(
     filename = function() {
@@ -2992,6 +3120,16 @@ output$statistical_significance_square <- renderUI({
 
   # Automatically switch to “Test Results” tab when Run is clicked
   observeEvent(input$cor_run, {
+    # Explicit input checks
+    if (is.null(input$cor_file)) {
+      showNotification("Please upload the data.", type = "error")
+      return()
+    }
+    if (is.null(input$cor_method) || input$cor_method == "") {
+      showNotification("Please choose the test.", type = "error")
+      return()
+    }
+    
     updateTabsetPanel(session, inputId = "cor_tabs", selected = "Test Results")
   })
 
@@ -3629,8 +3767,12 @@ output$statistical_significance_square <- renderUI({
     table_output <- if (n_feat <= 10) {
       DT::dataTableOutput("cor_table")
     } else {
-      div(style="color:#a00; margin-top:8px;",
-          "You selected more than 10 features. View full results by downloading tables below.")
+      div(
+        style = "background-color:#fff3cd; color:#856404; padding:14px; border:1px solid #ffeeba; border-radius:5px; margin-top:8px; margin-bottom:12px;",
+        icon("exclamation-triangle", lib = "font-awesome"),
+        "You selected more than 10 features. View full results by downloading tables below."
+      )
+      
     }
 
     tagList(warn_msg, table_output)
@@ -3917,7 +4059,11 @@ output$cor_matrix_download_ui <- renderUI({
     if (input$cor_method == "pearson" && n_feat > 2) {
       return(
         if (n_feat < 5 || n_feat > 20) {
-          div(style="color:#a00; margin-top:8px;", "Heatmap only available for 5-20 features.")
+          return(div(
+            style = "background-color:#fff3cd; color:#856404; padding:14px; border:1px solid #ffeeba; border-radius:5px; margin-top:8px; margin-bottom:12px;",
+            icon("exclamation-triangle", lib = "font-awesome"),
+            "Heatmap only available for 5–20 features."
+          ))
         } else {
           plotOutput("cor_heatmap")
         }
@@ -3926,7 +4072,11 @@ output$cor_matrix_download_ui <- renderUI({
 
     # For other methods (spearman, etc.)
     if (n_feat < 5 || n_feat > 20) {
-      return(div(style="color:#a00; margin-top:8px;", "Heatmap only available for 5-20 features."))
+      return(div(
+        style = "background-color:#fff3cd; color:#856404; padding:14px; border:1px solid #ffeeba; border-radius:5px; margin-top:8px; margin-bottom:12px;",
+        icon("exclamation-triangle", lib = "font-awesome"),
+        "Heatmap only available for 5–20 features."
+      ))
     }
 
     plotOutput("cor_heatmap")
