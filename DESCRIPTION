@@ -6,7 +6,7 @@ Authors@R:
 Description: A Shiny application to assess statistical assumptions and guide users 
     toward appropriate tests. Designed for researchers with minimal statistical training. 
     Provides diagnostics, plots, and test recommendations for a wide range of analyses.
-License: GPL-3.0
+License: GPL-3 | file LICENSE
 Imports: 
     shiny,
     shinyjs,
