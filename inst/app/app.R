@@ -1255,7 +1255,7 @@ server <- function(input, output, session) {
     # New: Minimum checks
     ngroups <- nlevels(df$group)
     if (input$test_type == "independent_ttest" && (ngroups != 2 || any(table(df$group) < 2))) {
-      showNotification(strong("Independent t-test requires exactly 2 groups, each with at least 2 samples."), type = "error")
+      showNotification(strong("Independent t-test requires exactly 2 groups, each with at least 2 samples. For more than 2 groups, use One-way ANOVA."), type = "error")
       return()
     }
     if (input$test_type == "dependent_ttest") {
@@ -2044,7 +2044,7 @@ output$levene_text <- renderPrint({
   run_wilcoxon_signed_test <- function(df) {
     ngroups <- nlevels(df$group)
     if (ngroups != 2) {
-      showNotification(strong("Wilcoxon signed-rank test requires exactly 2 groups."), type = "error")
+      showNotification(strong("Wilcoxon signed-rank test requires exactly 2 groups. For more than 2 groups, use Kruskal-Wallis."), type = "error")
       return(data.frame(p = NA))
     }
     tryCatch({
