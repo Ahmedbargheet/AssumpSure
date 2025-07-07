@@ -794,6 +794,7 @@ function corScreenshotWithoutScatterBtn() {
                    id = "cor_tabs",
                    tabPanel(
                      "Assumption Tests",
+                     uiOutput("cor_feature_warning_msg"),
                      tags$div(style = "margin-top: 10px;"),
                      uiOutput("cor_show_screenshot_btn"),
                      div(id = "cor_report_content", uiOutput("cor_assumption_content"))
@@ -1240,7 +1241,7 @@ server <- function(input, output, session) {
       return()
     }
     if (group_is_numeric) {
-      showNotification("The selected group column is numeric. Please select a categorical (group) column.", type = "error")
+      showNotification(strong("The selected group column is numeric. Please select a categorical (group) column."), type = "error")
       return()
     }
 
@@ -1783,23 +1784,31 @@ output$levene_text <- renderPrint({
   assumption_summary_independent <- function(df) {
     normality <- shapiro_result()
     levene_result <- levene_result()
-    normality_passed <- if ("p" %in% names(normality)) all(normality$p > 0.05) else FALSE
-    variance_passed <- if ("p" %in% names(levene_result)) levene_result$p > 0.05 else FALSE
-    if (normality_passed && variance_passed) {
+    normality_p <- if ("p" %in% names(normality)) normality$p else NA
+    variance_p <- if ("p" %in% names(levene_result)) levene_result$p else NA
+    variance_passed <- !is.na(variance_p) && variance_p > 0.05
+    
+    if (all(!is.na(normality_p)) && all(normality_p > 0.10) && variance_passed) {
       div(
         style = "background-color: green; color: white; padding: 10px; border-radius: 5px;",
         strong("✓ Assumptions Passed"),
         p("Parametric test (T-test) can be performed with confidence.")
       )
+    } else if (any(!is.na(normality_p) & normality_p > 0.05 & normality_p <= 0.10) && variance_passed) {
+      div(
+        style = "background-color: #ffc107; color: #222; padding: 10px; border-radius: 5px;",
+        strong("! Borderline normality"),
+        p("Normality assumption is borderline (Shapiro-Wilk p = 0.05-0.1). Please check the histogram or QQ plot. When uncertain, Wilcoxon signed-rank test is a robust alternative.")
+      )
     } else {
       div(
         style = "background-color: #B20D00; color: white; padding: 10px; border-radius: 5px;",
         strong("✗ Assumptions Not Met"),
-        p("Consider non-parametric alternative:",
-        strong("Mann-Whitney U test."))
+        p("Consider the non-parametric alternative:", strong("Mann-Whitney U test."))
       )
     }
   }
+  
 
   ## Dependent t-test
   assumption_summary_dependent <- function(df) {
@@ -1808,27 +1817,39 @@ output$levene_text <- renderPrint({
     v1 <- df %>% filter(group == group_levels[1]) %>% pull(value)
     v2 <- df %>% filter(group == group_levels[2]) %>% pull(value)
     if (length(v1) != length(v2) || length(v1) < 3) {
-      return(div(style = "background-color: orange; color: white; padding: 10px; border-radius: 5px;",
-                 strong("Cannot run paired test: Unequal or insufficient values per group. Check your data.")))
+      return(div(
+        style = "background-color: orange; color: white; padding: 10px; border-radius: 5px;",
+        strong("Cannot run paired test: Unequal or insufficient values per group. Check your data.")
+      ))
     }
     diff <- v1 - v2
     shapiro_diff <- shapiro_test(diff)
-    normality_passed <- if ("p.value" %in% names(shapiro_diff)) shapiro_diff$p.value > 0.05 else FALSE
-    if (normality_passed) {
+    shapiro_p <- if ("p.value" %in% names(shapiro_diff)) shapiro_diff$p.value else NA
+    
+    if (!is.na(shapiro_p) && shapiro_p > 0.10) {
       div(
         style = "background-color: green; color: white; padding: 10px; border-radius: 5px;",
         strong("✓ Assumptions Passed"),
         p("Parametric paired t-test can be performed with confidence.")
       )
+    } else if (!is.na(shapiro_p) && shapiro_p > 0.05 && shapiro_p <= 0.10) {
+      div(
+        style = "background-color: #ffc107; color: #222; padding: 10px; border-radius: 5px;",
+        strong("! Borderline normality"),
+        p(sprintf(
+          "Normality assumption for paired differences is borderline (Shapiro-Wilk p = %.4f). Please check the histogram or QQ plot. When uncertain, Wilcoxon signed-rank test is a robust alternative.",
+          shapiro_p
+        ))
+      )
     } else {
       div(
         style = "background-color: #B20D00; color: white; padding: 10px; border-radius: 5px;",
         strong("✗ Assumptions Not Met"),
-        p("Consider a non-parametric alternative:",
-        strong("Wilcoxon signed-rank test."))
+        p("Consider a non-parametric alternative:", strong("Wilcoxon signed-rank test."))
       )
     }
   }
+  
 
 ## One-way ANOVA
   assumption_summary_anova <- function(df) {
@@ -1836,27 +1857,32 @@ output$levene_text <- renderPrint({
     levene_res <- levene_result()
     if (is.null(normality) || is.null(levene_res)) return(NULL)
     pval_col <- if ("p" %in% names(normality)) "p" else if ("p.value" %in% names(normality)) "p.value" else NULL
-    normality_passed <- FALSE
-    if (!is.null(pval_col)) {
-      normality_passed <- all(na.omit(normality[[pval_col]]) > 0.05)
-    }
-    variance_passed <- if ("p" %in% names(levene_res)) levene_res$p > 0.05 else FALSE
-    if (normality_passed && variance_passed) {
+    normality_p <- if (!is.null(pval_col)) na.omit(normality[[pval_col]]) else NA
+    variance_p <- if ("p" %in% names(levene_res)) levene_res$p else NA
+    variance_passed <- !is.na(variance_p) && variance_p > 0.05
+    
+    if (all(!is.na(normality_p)) && all(normality_p > 0.10) && variance_passed) {
       div(
         style = "background-color: green; color: white; padding: 10px; border-radius: 5px;",
         strong("✓ Assumptions Passed"),
         p("Parametric test (One-way ANOVA) can be performed with confidence.")
       )
+    } else if (any(!is.na(normality_p) & normality_p > 0.05 & normality_p <= 0.10) && variance_passed) {
+      div(
+        style = "background-color: #ffc107; color: #222; padding: 10px; border-radius: 5px;",
+        strong("! Borderline normality"),
+        p("Normality assumption is borderline for one or more groups (Shapiro-Wilk p = 0.05-0.1). Please check the histograms or QQ plots. When uncertain, Kruskal–Wallis is a robust alternative."
+        )
+      )
     } else {
       div(
         style = "background-color: #B20D00; color: white; padding: 10px; border-radius: 5px;",
         strong("✗ Assumptions Not Met"),
-        p("Consider a non-parametric alternative:",
-        strong("Kruskal–Wallis test."))
+        p("Consider a non-parametric alternative:", strong("Kruskal–Wallis test."))
       )
     }
   }
-
+  
 
   output$assumption_summary <- renderUI({
     df <- processed_data()
@@ -3147,6 +3173,33 @@ output$statistical_significance_square <- renderUI({
       NULL
     })
   })
+  
+  observeEvent(cor_data(), {
+    df <- cor_data()
+    req(df)
+    n_feat <- ncol(df) - 1 # adjust if you have a sample/ID column; otherwise, just ncol(df)
+    if (n_feat > 100) {
+      output$cor_feature_warning_msg <- renderUI({
+        div(
+          style = "background-color:#fff3cd; color:#856404; padding:14px; border:1px solid #ffeeba; border-radius:5px; margin-bottom:12px;",
+          icon("exclamation-triangle", lib = "font-awesome"),
+          strong(" Warning:"),
+          tags$ul(
+            tags$li(
+              paste0("Your data has ", n_feat, " features. High feature counts and sparse data (many zeros) can make correlation analysis slow or fail.")
+            ),
+            tags$li("Use the prevalence slider to filter out low-prevalence features and reduce the feature count to 100 or fewer before clicking 'Run Correlation'."),
+            tags$li("Only the top 100 features will be included."),
+            tags$li("Downloading the full correlation matrix/table (100 features) may take 10–30 seconds. Please wait after clicking the download button.")
+          )
+        )
+      })
+    } else {
+      output$cor_feature_warning_msg <- renderUI({ NULL })
+    }
+  })
+  
+  
 
   ## --- Detect Numeric Features, Exclude Sample ID ---
   cor_numeric_features <- reactive({
@@ -3171,7 +3224,7 @@ output$statistical_significance_square <- renderUI({
       choices = num_cols,
       selected = num_cols[seq_len(min(2, length(num_cols)))],
       multiple = TRUE,
-      options = list(maxItems = Inf)
+      options = list(maxItems = 100)
     )
   })
 
@@ -3393,11 +3446,6 @@ output$statistical_significance_square <- renderUI({
           )
         ),
 
-
-        # div(
-        #   style = paste0("background-color:", if (!is.null(scatter_plot)) "green" else "red", "; color: white; padding: 5px; margin-bottom:8px;"),
-        #   if (!is.null(scatter_plot)) "Scatterplot rendered." else "Plot error."
-        # ),
         div(
           style = "text-align:center; margin-top: 12px; margin-bottom: 18px;",
           downloadButton("cor_download_plot", "Download Scatter Plot", 
@@ -4063,7 +4111,7 @@ output$cor_matrix_download_ui <- renderUI({
             strong("Heatmap only available for 5–20 features.")
           ))
         } else {
-          plotOutput("cor_heatmap")
+          plotOutput("cor_heatmap", height = "600px", width = "100%")
         }
       )
     }
@@ -4077,7 +4125,7 @@ output$cor_matrix_download_ui <- renderUI({
       ))
     }
 
-    plotOutput("cor_heatmap")
+    plotOutput("cor_heatmap", height = "600px", width = "100%")
   })
 
 
@@ -4107,10 +4155,10 @@ output$cor_matrix_download_ui <- renderUI({
     
     
     # --- Dynamic label size ---
-    tl_size <- ifelse(n_feat > 15, 1.1,
-                      ifelse(n_feat > 10, 1.3, 1.8))
-    cl_size <- ifelse(n_feat > 15, 0.8,
-                      ifelse(n_feat > 10, 1.1, 1.4))
+    tl_size <- ifelse(n_feat > 15, 1.4,
+                      ifelse(n_feat > 10, 1.4, 1.4))
+    cl_size <- ifelse(n_feat > 15, 1.3,
+                      ifelse(n_feat > 10, 1.4, 1.4))
     
     corrplot::corrplot(
       cormat_mat, type = "lower", na.label = NA, outline = TRUE, order = "hclust",
@@ -4133,7 +4181,7 @@ output$cor_matrix_download_ui <- renderUI({
 
 
   output$cor_download_heatmap <- downloadHandler(
-    filename = function() paste0("correlation_heatmap_", Sys.Date(), ".png"),
+    filename = function() paste0("correlation_heatmap_", Sys.Date(), ".pdf"),
     content = function(file) {
       df <- cor_clr_data()
       n_feat <- length(input$cor_features)
@@ -4144,12 +4192,13 @@ output$cor_matrix_download_ui <- renderUI({
         rownames(cormat_mat) <- cormat[,1]
         
         # --- Dynamic label size adjustment ---
-        tl_size <- ifelse(n_feat > 15, 0.5,
-                          ifelse(n_feat > 10, 0.8, 1.2))
-        cl_size <- ifelse(n_feat > 15, 0.4,
-                          ifelse(n_feat > 10, 0.6, 1))
+        tl_size <- ifelse(n_feat > 15, 1, # font size
+                          ifelse(n_feat > 10, 1.1, 1))
+        cl_size <- ifelse(n_feat > 15, 1, # color legend
+                          ifelse(n_feat > 10, 1, 1))
         
-        png(file, width = 400 + 60 * n_feat, height = 400 + 60 * n_feat, res = 500)
+        #png(file, width = 500 + 60 * n_feat, height = 400 + 60 * n_feat, res = 300)
+        pdf(file, width = 8, height = 6)
         par(mar = c(2, 2, 2, 2)) # adjust if needed
         corrplot::corrplot(
           cormat_mat, type = "lower", na.label = NA, outline = TRUE, order = "hclust",
