@@ -37,9 +37,9 @@ Misused statistical tests due to overlooked assumptions can undermine scientific
 
 - T-tests (independent & paired)
 - One-way ANOVA
-- Mann–Whitney U test
+- Mann-Whitney U test
 - Wilcoxon signed-rank test
-- Kruskal–Wallis test
+- Kruskal-Wallis test
 - Chi-square and Fisher’s exact tests
 - Correlation analyses (Pearson, Spearman, Kendall, and Biweight midcorrelation)
 - Linear and linear mixed-effects models
