@@ -2768,6 +2768,44 @@ output$statistical_significance_square <- renderUI({
         dplyr::select(.data[[input$cat1]], .data[[input$cat2]]) %>%
         tidyr::drop_na() %>%
         table()
+      
+      # Special check for one-group-per-variable (degenerate case)
+      if (any(dim(tab) < 2)) {
+        shiny::showModal(modalDialog(
+          title = div(icon("exclamation-triangle", lib = "font-awesome"), "Invalid data for Fisher's Exact Test"),
+          div(
+            style = "background-color:#f8d7da; color:#721c24; padding:14px; border:1px solid #f5c6cb; border-radius:5px; margin-bottom:12px;",
+            icon("exclamation-circle", lib = "font-awesome"),
+            strong(" Error: "),
+            "Fisher's Exact Test requires at least two groups for each variable. Your data contains only one group in one or both variables. ",
+            "Please provide a dataset with at least two distinct groups for each variable to use Fisher's Exact Test or Chi-square."
+          ),
+          easyClose = TRUE,
+          footer = NULL
+        ))
+        cat("Cannot run test: both variables must have at least two groups each.")
+        return(invisible(NULL))
+      }
+      if (any(dim(tab) < 2)) {
+        shiny::showModal(
+          modalDialog(
+            title = div(icon("exclamation-triangle", lib = "font-awesome"), "Invalid data for Fisher's Exact Test or Chi-square"),
+            div(
+              style = "background-color:#f8d7da; color:#721c24; padding:14px; border:1px solid #f5c6cb; border-radius:5px; margin-bottom:12px;",
+              icon("exclamation-circle", lib = "font-awesome"),
+              strong(" Error: "),
+              "Test requires at least two groups for both variables. Your data contains only one group in one or both variables. ",
+              "Please provide a dataset with at least two distinct groups for each variable."
+            ),
+            easyClose = TRUE,
+            footer = NULL
+          )
+        )
+        # ALSO CLEAR OTHER OUTPUTS
+        output$fisher_chisq_square <- renderUI({ NULL })
+        output$posthoc_result_fisher <- renderPrint({ NULL })
+        return(invisible(NULL))
+      }
 
       tryCatch({
         if (input$test_type_fisher == "chisq") {
@@ -2833,6 +2871,11 @@ output$statistical_significance_square <- renderUI({
 
     output$posthoc_result_fisher <- renderPrint({
       if (!run_fisher_clicked()) return(NULL)
+      tab <- df %>%
+        dplyr::select(.data[[input$cat1]], .data[[input$cat2]]) %>%
+        table()
+      if (any(dim(tab) < 2)) return(invisible(NULL))
+      
 
       count1 <- nlevels(droplevels(df[[input$cat1]]))
       count2 <- nlevels(droplevels(df[[input$cat2]]))
@@ -2928,6 +2971,7 @@ output$statistical_significance_square <- renderUI({
   })
 
   stat_square_chisq <- function(tab) {
+    if (any(dim(tab) < 2)) return(NULL)
     res <- rstatix::chisq_test(tab)
     pval <- res$p[1]
     if (is.na(pval)) return(NULL)
@@ -2941,6 +2985,7 @@ output$statistical_significance_square <- renderUI({
   }
 
   stat_square_fisher <- function(tab) {
+    if (any(dim(tab) < 2)) return(NULL)
     res <- rstatix::fisher_test(tab)
     pval <- res$p[1]
     if (is.na(pval)) return(NULL)
@@ -2970,6 +3015,8 @@ output$statistical_significance_square <- renderUI({
       dplyr::select(.data[[input$cat1]], .data[[input$cat2]]) %>%
       tidyr::drop_na() %>%
       table()
+    if (any(dim(tab) < 2)) return(NULL)
+    
     if (input$test_type_fisher == "chisq") {
       stat_square_chisq(tab)
     } else {
