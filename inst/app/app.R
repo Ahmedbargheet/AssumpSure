@@ -1237,7 +1237,8 @@ server <- function(input, output, session) {
     group_is_numeric <- is.numeric(type.convert(df0[[input$group_col]], as.is = TRUE))
 
     if (!value_is_numeric) {
-      showNotification("The selected value column is not numeric. Please select a numeric column.", type = "error")
+      showNotification(strong("The selected value column is not numeric. Please select a numeric column."), 
+                       type = "error")
       return()
     }
     if (group_is_numeric) {
@@ -1287,11 +1288,12 @@ server <- function(input, output, session) {
       value_is_numeric <- is.numeric(type.convert(df0[[input$value_col]], as.is = TRUE))
       group_is_numeric <- is.numeric(type.convert(df0[[input$group_col]], as.is = TRUE))
       if (!value_is_numeric) {
-        showNotification("The selected value column is not numeric. Please select a numeric column.", type = "error")
+        showNotification(strong("The selected value column is not numeric. Please select a numeric column."), 
+                         type = "error")
         return()
       }
       if (group_is_numeric) {
-        showNotification("The selected group column is numeric. Please select a categorical (group) column.", type = "error")
+        showNotification(strong("The selected group column is numeric. Please select a categorical (group) column."), type = "error")
         return()
       }
       df <- df0 %>%
@@ -1318,11 +1320,12 @@ server <- function(input, output, session) {
       value_is_numeric <- is.numeric(type.convert(df0[[input$value_col]], as.is = TRUE))
       group_is_numeric <- is.numeric(type.convert(df0[[input$group_col]], as.is = TRUE))
       if (!value_is_numeric) {
-        showNotification("The selected value column is not numeric. Please select a numeric column.", type = "error")
+        showNotification(strong("The selected value column is not numeric. Please select a numeric column."), 
+                         type = "error")
         return()
       }
       if (group_is_numeric) {
-        showNotification("The selected group column is numeric. Please select a categorical (group) column.", type = "error")
+        showNotification(strong("The selected group column is numeric. Please select a categorical (group) column."), type = "error")
         return()
       }
       df <- df0 %>%
@@ -1349,11 +1352,12 @@ server <- function(input, output, session) {
       value_is_numeric <- is.numeric(type.convert(df0[[input$value_col]], as.is = TRUE))
       group_is_numeric <- is.numeric(type.convert(df0[[input$group_col]], as.is = TRUE))
       if (!value_is_numeric) {
-        showNotification("The selected value column is not numeric. Please select a numeric column.", type = "error")
+        showNotification(strong("The selected value column is not numeric. Please select a numeric column."), 
+                         type = "error")
         return()
       }
       if (group_is_numeric) {
-        showNotification("The selected group column is numeric. Please select a categorical (group) column.", type = "error")
+        showNotification(strong("The selected group column is numeric. Please select a categorical (group) column."), type = "error")
         return()
       }
       df <- df0 %>%
@@ -1902,16 +1906,19 @@ output$levene_text <- renderPrint({
     df <- processed_data()
     if (is.null(df)) return(NULL)
     if (all(is.na(df$group))) {
-      showNotification("Group column contains only NA. Please select a valid grouping variable.", type = "error")
+      showNotification(strong("Group column contains only NA. Please select a valid grouping variable."), 
+                       type = "error")
       return(NULL)
     }
     if (nlevels(df$group) < 2) {
-      showNotification("Grouping variable must have at least 2 groups.", type = "error")
+      showNotification(strong("Grouping variable must have at least 2 groups."), 
+                       type = "error")
       return(NULL)
     }
     group_sizes <- table(df$group)
     if (any(group_sizes < 2)) {
-      showNotification("All groups must have at least 2 values for Levene's test.", type = "error")
+      showNotification(strong("All groups must have at least 2 values for Levene's test."), 
+                       type = "error")
       return(NULL)
     }
     df %>% levene_test(value ~ group)
@@ -1923,16 +1930,17 @@ output$levene_text <- renderPrint({
 ## Independent t-test Shapiro result
   shapiro_result_independent <- function(df) {
     if (all(is.na(df$group))) {
-      showNotification("Group column contains only NA. Please select a valid grouping variable.", type = "error")
+      showNotification(strong("Group column contains only NA. Please select a valid grouping variable."), 
+                       type = "error")
       return(NULL)
     }
     if (nlevels(df$group) < 2) {
-      showNotification("Grouping variable must have at least 2 groups.", type = "error")
+      showNotification(strong("Grouping variable must have at least 2 groups."), type = "error")
       return(NULL)
     }
     group_sizes <- table(df$group)
     if (any(group_sizes < 3) | any(group_sizes > 5000)) {
-      showNotification("All groups must have between 3 and 5000 values for normality testing (Shapiro-Wilk).", type = "error")
+      showNotification(strong("All groups must have between 3 and 5000 values for normality testing (Shapiro-Wilk)."), type = "error")
       return(NULL)
     }
     df %>% group_by(group) %>% shapiro_test(value)
@@ -1941,7 +1949,7 @@ output$levene_text <- renderPrint({
 ## Dependent t-test Shapiro result
   shapiro_result_dependent <- function(df) {
     if (all(is.na(df$group))) {
-      showNotification("Group column contains only NA. Please select a valid grouping variable.", type = "error")
+      showNotification(strong("Group column contains only NA. Please select a valid grouping variable."), type = "error")
       return(NULL)
     }
     if (nlevels(df$group) < 2) {
@@ -1965,7 +1973,8 @@ output$levene_text <- renderPrint({
   ## ANOVA Shapiro result
   shapiro_result_anova <- function(df) {
     if (all(is.na(df$group))) {
-      showNotification("Group column contains only NA. Please select a valid grouping variable.", type = "error")
+      showNotification(strong("Group column contains only NA. Please select a valid grouping variable."), 
+                       type = "error")
       return(NULL)
     }
     if (nlevels(df$group) < 2) {
@@ -5726,7 +5735,8 @@ lmm_vars <- reactive({
           filter(term != "(Intercept)")
 
         if (nrow(b) == 0) {
-          showNotification("Effect plot could not be generated due to NA estimates or intervals.", type = "error")
+          showNotification(strong("Effect plot could not be generated due to NA estimates or intervals."), 
+                           type = "error")
           return(NULL)
         }
 
@@ -5911,12 +5921,12 @@ lmm_vars <- reactive({
           tidyr::drop_na()
 
         if (input$nb_dep %in% input$nb_indep) {
-          showNotification("Dependent variable cannot be included as independent.", type = "error")
+          showNotification(strong("Dependent variable cannot be included as independent."), type = "error")
           return(NULL)
         }
 
         if (length(input$nb_indep) < 1) {
-          showNotification("Please select at least one independent variable.", type = "error")
+          showNotification(strong("Please select at least one independent variable."), type = "error")
           return(NULL)
         }
 
@@ -6247,12 +6257,12 @@ lmm_vars <- reactive({
         df <- df %>% dplyr::select(all_of(model_vars)) %>% tidyr::drop_na()
 
         if (input$multi_dep %in% input$multi_indep) {
-          showNotification("Dependent variable cannot be included as independent.", type = "error")
+          showNotification(strong("Dependent variable cannot be included as independent."), type = "error")
           return(NULL)
         }
 
         if (length(input$multi_indep) < 1) {
-          showNotification("Please select at least one independent variable.", type = "error")
+          showNotification(strong("Please select at least one independent variable."), type = "error")
           return(NULL)
         }
 
