@@ -1267,7 +1267,7 @@ server <- function(input, output, session) {
     }
     # ---- ANOVA GROUP CHECK ----
     if (input$test_type == "anova" && ngroups < 3) {
-      showNotification(strong("One-way ANOVA requires a categorical variable with at least 3 groups."), type = "error")
+      showNotification(strong("Only two groups detected. Please use a t-test (independent or paired, as appropriate). One-way ANOVA is for three or more groups."), type = "error")
       return()
     }
     processed_data(df)
@@ -2160,7 +2160,7 @@ output$levene_text <- renderPrint({
       if (input$test_type == "kruskal") {
         ngroups <- nlevels(df$group)
         if (ngroups < 3) {
-          showNotification(strong("Kruskal–Wallis requires at least 3 groups."), type = "error")
+          showNotification(strong("Kruskal-Wallis requires at least 3 groups. For two groups, use the Wilcoxon or Mann–Whitney test (as appropriate)."), type = "error")
           return(NULL)
         }}
       if (!assumptions_met()) {
