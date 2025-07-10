@@ -1256,19 +1256,31 @@ server <- function(input, output, session) {
     # New: Minimum checks
     ngroups <- nlevels(df$group)
     if (input$test_type == "independent_ttest" && (ngroups != 2 || any(table(df$group) < 2))) {
-      showNotification(strong("Independent t-test requires exactly 2 groups, each with at least 2 samples. For more than 2 groups, use One-way ANOVA."), type = "error")
+      showNotification(strong("More than two groups detected. Please use One-way ANOVA. Independent t-test is only for comparing exactly two groups."), type = "error")
       return()
     }
     if (input$test_type == "dependent_ttest") {
       counts <- table(df$group)
-      if (ngroups != 2 || length(unique(counts)) > 1 || any(counts < 3)) {
-        showNotification(strong("Dependent t-test requires exactly 2 groups, each with at least 3 samples and equal size."), type = "error")
+      ngroups <- length(counts)
+      group_sizes <- as.numeric(counts)
+      
+      if (ngroups != 2) {
+        showNotification(strong("More than two groups detected. Please use One-way ANOVA. Paired t-test is only for comparing exactly two groups."), type = "error", duration = 3)
+        return()
+      }
+      if (length(unique(group_sizes)) > 1) {
+        showNotification(strong("Paired t-test requires both groups to have equal sample size. If your data are not truly paired, consider using the independent t-test. Otherwise, check your data for missing or unmatched pairs."), type = "error", duration = 6)
+        return()
+      }
+      if (any(group_sizes < 3)) {
+        showNotification(strong("Paired t-test requires at least 3 samples in each group."), type = "error")
         return()
       }
     }
+    
     # ---- ANOVA GROUP CHECK ----
     if (input$test_type == "anova" && ngroups < 3) {
-      showNotification(strong("Only two groups detected. Please use a t-test (independent or paired, as appropriate). One-way ANOVA is for three or more groups."), type = "error")
+      showNotification(strong("Only two groups detected. Please use a t-test (independent or paired, as appropriate). One-way ANOVA is for three or more groups."), type = "error", duration = 5)
       return()
     }
     processed_data(df)
