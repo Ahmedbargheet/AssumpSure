@@ -823,7 +823,7 @@ function corScreenshotWithoutScatterBtn() {
       h3(icon("question-circle", style = "margin-right: 10px; color: #3A9BB2;") , "How to Use AssumpSure",
          style = "color: #2c3e50; font-weight: 600;"),
 
-      p("Follow these steps to get started or see this link:",
+      p("Follow these steps to get started:",
         style = "color: #444;"),
 
       tags$ol(
