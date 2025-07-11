@@ -1,12 +1,10 @@
 Package: AssumpSure
-Title: Statistical Test Assumption Checking and Statistical Test Guidance App
+Title: 'shiny' Application for Statistical Test Assumption Checking and Guidance
 Version: 1.0.0
 Authors@R: 
     person("Ahmed", "Bargheet", , "ahmed.bargheet@yahoo.com", role = c("aut", "cre"))
-Description: A Shiny application to assess statistical assumptions and guide users 
-    toward appropriate tests. Designed for researchers with minimal statistical training. 
-    Provides diagnostics, plots, and test recommendations for a wide range of analyses.
-License: GPL-3 | file LICENSE
+Description: A 'shiny' application to assess statistical assumptions and guide users toward appropriate tests. The app is designed for researchers with minimal statistical training and provides diagnostics, plots, and test recommendations for a wide range of analyses. Many statistical assumptions are implemented using the package 'rstatix' (Kassambara, 2019) <doi:10.32614/CRAN.package.rstatix> and 'performance' (Lüdecke et al., 2021) <doi:10.21105/joss.03139>.
+License: GPL-3
 Imports: 
     shiny,
     shinyjs,
@@ -17,7 +15,6 @@ Imports:
     fontawesome,
     tidyverse,
     rstatix,
-    ggpubr,
     knitr,
     compositions,
     car,
