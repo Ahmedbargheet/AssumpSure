@@ -485,7 +485,7 @@ function corScreenshotWithoutScatterBtn() {
                                             icon("info-circle", class = "fa-solid"),
                                             `data-bs-toggle` = "tooltip",
                                             `data-bs-placement` = "right",
-                                            title = "Apply a transformation if the dependent variable is highly skewed or not normally distributed. Log/Box-Cox require all values > 0. Use Yeo-Johnson or Inverse Normal for variables with zeros or negatives. Always check the histogram before and after transformation."
+                                            title = "Tip: If the dependent variable is highly skewed or not normally distributed, please apply a transformation before running the test. Use Log or Box-Cox for values > 0. Use Yeo-Johnson or Inverse Normal for variables with zeros or negatives. Always inspect the histogram before and after transformation."
                                           )),
                                         choices = c(
                                           "None" = "none",
@@ -549,7 +549,7 @@ function corScreenshotWithoutScatterBtn() {
                                   icon("info-circle", class = "fa-solid"),
                                   `data-bs-toggle` = "tooltip",
                                   `data-bs-placement` = "right",
-                                  title = "How to choose random effects: Use a random effect for hierarchical or grouped data (e.g., patient ID). If a grouping variable has many levels (usually more than 5), treat it as a random effect. With fewer levels, use it as a fixed effect (an independent variable). For nested data structures (e.g., students within classes within schools), select all relevant grouping variables.",
+                                  title = "How to choose random effects: Use a random effect for hierarchical or grouped data (e.g., patient ID). If a grouping variable has many levels (usually more than 5), treat it as a random effect. With fewer levels, it is safer to include them as fixed effects (an independent variable). For nested data structures (e.g., students within classes within schools), include all relevant grouping variables as random effects to account for within-group correlations. Always ensure your choice reflects the study design and model assumptions.",
                                   style = "margin-left: 8px; color: #2c3e50; font-size:16px; cursor: pointer;"
                                 )
                               ),
@@ -565,7 +565,7 @@ function corScreenshotWithoutScatterBtn() {
                                 icon("info-circle", class = "fa-solid"),
                                 `data-bs-toggle` = "tooltip",
                                 `data-bs-placement` = "right",
-                                title = "Apply a transformation if the dependent variable is highly skewed or not normally distributed. Log/Box-Cox require all values > 0. Use Yeo-Johnson or Inverse Normal for variables with zeros or negatives. Always check the histogram before and after transformation.",
+                                title = "Tip: If the dependent variable is highly skewed or not normally distributed, please apply a transformation before running the test. Use Log or Box-Cox for values > 0. Use Yeo-Johnson or Inverse Normal for variables with zeros or negatives. Always inspect the histogram before and after transformation.",
                                 style = "margin-left: 8px; color: #2c3e50; font-size:16px; cursor: pointer;"
                               )),
                             selectInput(
@@ -753,7 +753,7 @@ function corScreenshotWithoutScatterBtn() {
                                 icon("info-circle", class = "fa-solid"),
                                 `data-bs-toggle` = "tooltip",
                                 `data-bs-placement` = "right",
-                                title = "Tip: Filtering out features with low prevalence can speed up analysis and highlight patterns in common features. Use a higher threshold to focus on widely present features, or a lower threshold if rare features may be important to your research.",
+                                title = "Tip: For compositional data, filter out low-prevalence features to reduce noise and improve interpretability. Use a higher threshold to focus on common features, or a lower one if rare features are important.",
                                 style = "color:#2c3e50; font-size:16px; margin-left:5px; cursor: pointer;"
                               )
                             ),
@@ -850,7 +850,7 @@ function corScreenshotWithoutScatterBtn() {
 
         icon("file-csv", class = "fa-2x", style = "color: #3A9BB2; margin-bottom: 10px;"),
         h5("Sample Data for Testing", style = "margin-bottom: 10px; font-weight: 600;"),
-        a(href = "https://github.com/Ahmedbargheet/AssumpSure/tree/main/vignettes/data/infants.csv", # correct
+        a(href = "https://github.com/Ahmedbargheet/AssumpSure/tree/main/inst/extdata/infants.csv", # correct
           "Download Sample Data (CSV)",
           target = "_blank",
           style = "font-size: 16px; text-decoration: none; color: #3A9BB2; font-weight: 500;"
@@ -2060,6 +2060,7 @@ output$levene_text <- renderPrint({
       rstatix::wilcox_test(df, value ~ group, paired = F, detailed = T)
     }, error = function(e) data.frame(p = NA))
   }
+  
 
 ## Wilcoxon signed-rank test
   run_wilcoxon_signed_test <- function(df) {
@@ -2237,6 +2238,7 @@ output$levene_text <- renderPrint({
         NULL
       )
     })
+    
   })
 
   stat_square_func <- function(df) {
@@ -3481,8 +3483,8 @@ output$statistical_significance_square <- renderUI({
     output$cor_assumption_content <- renderUI({
       req(input$cor_features)
       if (input$cor_method != "pearson") {
-        return(div(style = "color: #888; margin-top:12px;",
-                   "Assumption checks only apply for Pearson correlation."))
+        return(div(style = "color: #333; background-color:#f5f5f5; margin-top:12px;",
+                   strong("Assumption checks only apply for Pearson correlation.")))
       }
       # Defensive: If any assumption objects are NULL, tell the user to check assumptions.
       if (
@@ -3491,7 +3493,7 @@ output$statistical_significance_square <- renderUI({
       ) {
         return(div(style = "background-color:#f5f5f5; color:#333; padding:18px; border-radius:8px; margin-top:10px;",
                    icon("exclamation-circle", lib = "font-awesome"),
-                   "Please click 'Check Assumptions' to test the Pearson assumptions before reviewing details."
+                   strong("Assumption checks require exactly two features. Please select two features and check assumptions.")
         ))
       }
       tagList(
@@ -3680,12 +3682,14 @@ output$statistical_significance_square <- renderUI({
 
     # Bivariate
     output$cor_mvn_text <- renderPrint({
-      if (!is.na(mvn_p_val())) {
-        cat(sprintf("HZ test p = %.4g", mvn_p_val()))
+      val <- mvn_p_val()
+      if (!is.null(val) && !is.na(val)) {
+        cat(sprintf("HZ test p = %.4g", val))
       } else {
         cat("Test not run.")
       }
     })
+    
 
 
     output$cor_outlier_text <- renderPrint({
@@ -4267,13 +4271,17 @@ output$cor_matrix_download_ui <- renderUI({
         
         #png(file, width = 500 + 60 * n_feat, height = 400 + 60 * n_feat, res = 300)
         pdf(file, width = 8, height = 6)
+        oldpar <- par(no.readonly = TRUE)
+        on.exit({
+          par(oldpar)
+          dev.off()
+        })
         par(mar = c(2, 2, 2, 2)) # adjust if needed
         corrplot::corrplot(
           cormat_mat, type = "lower", na.label = NA, outline = TRUE, order = "hclust",
           tl.cex = tl_size, cl.cex = cl_size, tl.srt = 45, tl.col = "black", cl.ratio = 0.2,
           col = rev(corrplot::COL2('RdBu', 200))
         )
-        dev.off()
       }
     }
   )
