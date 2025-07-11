@@ -7,7 +7,6 @@ library(shinyscreenshot)
 library(fontawesome)
 library(tidyverse)
 library(rstatix)
-library(ggpubr)
 library(knitr)
 library(compositions)
 library(car)
@@ -2339,9 +2338,6 @@ output$statistical_significance_square <- renderUI({
     ggplot(df, aes(x = group, y = value, fill = group)) +
       geom_boxplot(alpha = 0.7, width = 0.3, outlier.colour = NA) +
       geom_jitter(width = 0.1, alpha = 0.5, shape = 21, size = 1.3) +
-      ggpubr::stat_compare_means(comparisons = comparison, method = "t.test", paired = FALSE,
-                                 label = "p.signif", size = 5, vjust = 0.2, hide.ns = FALSE,
-                                 bracket.size = 0.6) +
       theme_test() +
       labs(x = "Group", y = "Value") +
       theme(axis.title.y = element_text(face = "bold", size = 14),
@@ -2419,9 +2415,6 @@ output$statistical_significance_square <- renderUI({
     ggplot(df, aes(x = group, y = value, fill = group)) +
       geom_boxplot(alpha = 0.7, width = 0.3, outlier.colour = NA) +
       geom_jitter(width = 0.1, alpha = 0.5, shape = 21, size = 1.3) +
-      ggpubr::stat_compare_means(comparisons = comparison, method = "anova", paired = FALSE,
-                                 label = "p.signif", size = 5, vjust = 0.2, hide.ns = FALSE,
-                                 bracket.size = 0.6) +
       theme_test() +
       labs(x = "Group", y = "Value") +
       theme(axis.title.y = element_text(face = "bold", size = 14),
@@ -2442,9 +2435,6 @@ output$statistical_significance_square <- renderUI({
     ggplot(df, aes(x = group, y = value, fill = group)) +
       geom_boxplot(alpha = 0.7, width = 0.3, outlier.colour = NA) +
       geom_jitter(width = 0.1, alpha = 0.5, shape = 21, size = 1.3) +
-      #ggpubr::stat_compare_means(comparisons = comparison, method = "anova", paired = FALSE,
-      #                           label = "p.signif", size = 5, vjust = 0.2, hide.ns = FALSE,
-      #                           bracket.size = 0.6) +
       theme_test() +
       labs(x = "Group", y = "Value") +
       theme(axis.title.y = element_text(face = "bold", size = 14),
@@ -2485,9 +2475,6 @@ output$statistical_significance_square <- renderUI({
     ggplot(df, aes(x = group, y = value, fill = group)) +
       geom_boxplot(alpha = 0.7, width = 0.3, outlier.colour = NA) +
       geom_jitter(width = 0.1, alpha = 0.5, shape = 21, size = 1.3) +
-      ggpubr::stat_compare_means(comparisons = comparison, method = "t.test", paired = FALSE,
-                                 label = "p.signif", size = 5, vjust = 0.2, hide.ns = FALSE,
-                                 bracket.size = 0.6) +
       theme_test() +
       labs(x = "Group", y = "Value") +
       theme(axis.title.y = element_text(face = "bold", size = 14),
@@ -2573,9 +2560,6 @@ output$statistical_significance_square <- renderUI({
     ggplot(df, aes(x = group, y = value, fill = group)) +
       geom_boxplot(alpha = 0.7, width = 0.3, outlier.colour = NA) +
       geom_jitter(width = 0.1, alpha = 0.5, shape = 21, size = 1.3) +
-      ggpubr::stat_compare_means(comparisons = comparison, method = "anova", paired = FALSE,
-                                 label = "p.signif", size = 5, vjust = 0.2, hide.ns = FALSE,
-                                 bracket.size = 0.6) +
       theme_test() +
       labs(x = "", y = "Value") +
       theme(axis.title.y = element_text(face = "bold", size = 14),
@@ -2596,9 +2580,6 @@ output$statistical_significance_square <- renderUI({
     ggplot(df, aes(x = group, y = value, fill = group)) +
       geom_boxplot(alpha = 0.7, width = 0.3, outlier.colour = NA) +
       geom_jitter(width = 0.1, alpha = 0.5, shape = 21, size = 1.3) +
-      #ggpubr::stat_compare_means(comparisons = comparison, method = "anova", paired = FALSE,
-      #                           label = "p.signif", size = 5, vjust = 0.2, hide.ns = FALSE,
-      #                           bracket.size = 0.6) +
       theme_test() +
       labs(x = "Group", y = "Value") +
       theme(axis.title.y = element_text(face = "bold", size = 14),
