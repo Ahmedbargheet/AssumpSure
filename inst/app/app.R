@@ -6,6 +6,7 @@ library(htmltools)
 library(shinyscreenshot)
 library(fontawesome)
 library(tidyverse)
+library(ggpubr)
 library(rstatix)
 library(knitr)
 library(compositions)
@@ -1024,19 +1025,20 @@ server <- function(input, output, session) {
   data <- reactive({
     req(input$file)
     tryCatch({
-      df <- readr::read_csv(input$file$datapath, col_types = cols(.default = "c"), show_col_types = FALSE,
-                            na = c("", "NA", "N/A", "null"))
+      # Let read_csv guess column types (remove col_types=.default="c")
+      df <- readr::read_csv(
+        input$file$datapath,
+        show_col_types = FALSE,
+        na = c("", "NA", "N/A", "null")
+      )
       
-      # Convert to appropriate types
+      # Convert character columns to factor if they have <=50 unique values,
+      # otherwise leave as character. Numeric columns left as is.
       df[] <- lapply(df, function(col) {
-        # Try numeric first
-        num_col <- suppressWarnings(as.numeric(col))
-        if (!any(is.na(num_col)) && length(unique(num_col)) > 10) {
-          return(num_col)  # continuous
-        } else if (length(unique(col)) <= 10) {
-          return(factor(col))  # categorical
+        if (is.character(col) && length(unique(col)) <= 50) {
+          return(factor(col))
         } else {
-          return(col)  # leave as is
+          return(col)
         }
       })
       
@@ -1061,7 +1063,7 @@ server <- function(input, output, session) {
     
     # Categorical: factor or character with few unique values
     cat_vars <- names(df)[sapply(df, function(col) {
-      is.factor(col) || (is.character(col) && length(unique(col)) <= 10)
+      is.factor(col) || (is.character(col) && length(unique(col)) <= 50)
     })]
     
     tagList(
@@ -1497,7 +1499,8 @@ assumption_ui_dependent <- function() {
     br(),
     h4("Diagnostic Plots"),
     fluidRow(
-      column(6, plotOutput("qq_plot"), downloadButton("download_qq", "Download Q-Q Plot", class = "no-print")),
+      column(6, plotOutput("qq_plot"), 
+             downloadButton("download_qq", "Download Q-Q Plot", class = "no-print")),
       column(6, plotOutput("histogram_plot"), downloadButton("download_histogram", "Download Histogram", 
                                                              class = "no-print"))
     ),
@@ -1650,8 +1653,18 @@ output$levene_text <- renderPrint({
     ggplot(df, aes(sample = value, color = group)) +
       stat_qq() +
       stat_qq_line(color = "#E41A1C") +
-      facet_wrap(~group) +
       theme_test() +
+      scale_color_brewer(palette = "Set2") +
+      facet_wrap(~group) +
+      theme(strip.text = element_text(size = 12, face = "bold", color = "black")) + 
+      theme(strip.background = element_rect(colour = "black", fill = "white")) +
+      theme(axis.title.x = element_text(colour = "black", face="bold", size = 12)) +
+      theme(axis.title.y = element_text(colour = "black", face="bold", size = 12)) + 
+      theme(axis.text.x = element_text(colour = "black", size = 10)) +
+      theme(axis.text.y = element_text(colour = "black", size = 10)) +
+      xlab("Theoretical Quantiles") + 
+      ylab("Sample Quantiles") + 
+      theme(legend.position = "none") +
       theme(plot.background = element_rect(fill = "white"))
   }
 
@@ -1664,9 +1677,18 @@ output$levene_text <- renderPrint({
     if (length(v1) != length(v2) || length(v1) < 3) return()
     diff <- v1 - v2
     ggplot(data.frame(diff = diff), aes(sample = diff)) +
-      stat_qq() +
+      stat_qq(color = "#66C2A5") +
       stat_qq_line(color = "#E41A1C") +
       theme_test() +
+      scale_color_brewer(palette = "Set2") +
+      scale_fill_brewer(palette = "Set2") +
+      theme(axis.title.x = element_text(colour = "black", face="bold", size = 12)) +
+      theme(axis.title.y = element_text(colour = "black", face="bold", size = 12)) +
+      theme(axis.text.x = element_text(colour = "black", size = 10)) +
+      theme(axis.text.y = element_text(colour = "black", size = 10)) +
+      xlab("Theoretical Quantiles") + 
+      ylab("Sample Quantiles") + 
+      theme(legend.position = "none") +
       labs(title = "Q-Q Plot of Differences") +
       theme(plot.background = element_rect(fill = "white"))
   }
@@ -1677,8 +1699,18 @@ output$levene_text <- renderPrint({
     ggplot(df, aes(sample = value, color = group)) +
       stat_qq() +
       stat_qq_line(color = "#E41A1C") +
-      facet_wrap(~group) +
       theme_test() +
+      scale_color_brewer(palette = "Set2") +
+      facet_wrap(~group) +
+      theme(strip.text = element_text(size = 12, face = "bold", color = "black")) + 
+      theme(strip.background = element_rect(colour = "black", fill = "white")) + 
+      theme(axis.title.x = element_text(colour = "black", face="bold", size = 12)) +
+      theme(axis.title.y = element_text(colour = "black", face="bold", size = 12)) + 
+      theme(axis.text.x = element_text(colour = "black", size = 10)) +
+      theme(axis.text.y = element_text(colour = "black", size = 10)) +
+      xlab("Theoretical Quantiles") + 
+      ylab("Sample Quantiles") + 
+      theme(legend.position = "none") +
       theme(plot.background = element_rect(fill = "white"))
   }
   # q_plot_anova <- function(df) { ... }
@@ -1702,11 +1734,22 @@ output$levene_text <- renderPrint({
   # --- Histogram Plot ---
 # independent t-test
   histogram_plot_independent <- function(df) {
-    ggplot(df, aes(x = value, fill = group)) +
-      geom_histogram(aes(y = after_stat(density)), bins = 30, color = "black", fill = "#4db6ac", alpha = 0.7) +
+    ggplot(df, aes(x = value, fill = group, colour = group)) +
+      geom_histogram(aes(y = after_stat(density)), bins = 30, color = "black", alpha = 0.7) +
       geom_density(color = "#b2182b", size = 1.2, alpha = 0.7, show.legend = FALSE) +
-      facet_wrap(~group) +
       theme_test() +
+      scale_color_brewer(palette = "Set2") +
+      scale_fill_brewer(palette = "Set2") +
+      facet_wrap(~group) + 
+      theme(strip.text = element_text(size = 12, face = "bold",color = "black")) + 
+      theme(strip.background = element_rect(colour = "black", fill = "white")) + 
+      theme(axis.title.x = element_text(colour = "black", face="bold", size = 12)) +
+      theme(axis.title.y = element_text(colour = "black", face="bold", size = 12)) + 
+      theme(axis.text.x = element_text(colour = "black", size = 10)) +
+      theme(axis.text.y = element_text(colour = "black", size = 10)) +
+      xlab("Value") + 
+      ylab("Density") +
+      theme(legend.position = "none") +
       theme(plot.background = element_rect(fill = "white"))
   }
 
@@ -1719,20 +1762,40 @@ output$levene_text <- renderPrint({
     if (length(v1) != length(v2) || length(v1) < 3) return()
     diff <- v1 - v2
     ggplot(data.frame(diff = diff), aes(x = diff)) +
-      geom_histogram(aes(y = after_stat(density)), bins = 30, color = "black", fill = "#4db6ac", alpha = 0.7) +
-      geom_density(color = "#b2182b", size = 1.2, alpha = 0.7, show.legend = FALSE) +
+      geom_histogram(aes(y = after_stat(density)), bins = 30, color = "black", 
+                     fill = "#66C2A5", alpha = 0.7) +
+      geom_density(color = "#b2182b", fill = "#66C2A5", size = 1.2, alpha = 0.7, show.legend = FALSE) +
       theme_test() +
+      scale_color_brewer(palette = "Set2") + 
+      scale_fill_brewer(palette = "Set2") +
+      theme(axis.title.x = element_text(colour = "black", face="bold", size = 12)) +
+      theme(axis.title.y = element_text(colour = "black", face="bold", size = 12)) + 
+      theme(axis.text.x = element_text(colour = "black", size = 10)) +
+      theme(axis.text.y = element_text(colour = "black", size = 10)) +
+      xlab("Value") + 
+      ylab("Density") +
       labs(title = "Histogram of Differences") +
       theme(plot.background = element_rect(fill = "white"))
   }
 
   # One-way ANOVA
   histogram_plot_anova <- function(df) {
-    ggplot(df, aes(x = value, fill = group)) +
-      geom_histogram(aes(y = after_stat(density)), bins = 30, color = "black", fill = "#4db6ac", alpha = 0.7) +
+    ggplot(df, aes(x = value, fill = group, colour = group)) +
+      geom_histogram(aes(y = after_stat(density)), bins = 30, color = "black", alpha = 0.7) +
       geom_density(color = "#b2182b", size = 1.2, alpha = 0.7, show.legend = FALSE) +
-      facet_wrap(~group) +
       theme_test() +
+      scale_color_brewer(palette = "Set2") +
+      scale_fill_brewer(palette = "Set2") +
+      facet_wrap(~group) +
+      theme(strip.text = element_text(size = 12, face = "bold",color = "black")) + 
+      theme(strip.background = element_rect(colour = "black", fill = "white")) + 
+      theme(axis.title.x = element_text(colour = "black", face="bold", size = 12)) +
+      theme(axis.title.y = element_text(colour = "black", face="bold", size = 12)) + 
+      theme(axis.text.x = element_text(colour = "black", size = 10)) +
+      theme(axis.text.y = element_text(colour = "black", size = 10)) +
+      xlab("Value") + 
+      ylab("Density") +
+      theme(legend.position = "none") +
       theme(plot.background = element_rect(fill = "white"))
   }
 
@@ -1767,7 +1830,7 @@ output$levene_text <- renderPrint({
         NULL
       )
       if (is.null(p)) return(NULL)
-      ggsave(file, plot = p, width = 6, height = 4, dpi = 600, bg = "white")
+      ggsave(file, plot = p, width = 7, height = 4, dpi = 600, bg = "white")
     }
   )
 
@@ -2334,11 +2397,21 @@ output$statistical_significance_square <- renderUI({
 
   # --- Boxplot (independent) ---
   plot_independent_boxplot <- function(df) {
-    comparison <- combn(unique(df$group), 2, simplify = FALSE)
+    
+    # Always coerce to factor and drop unused levels
+    df$group <- factor(df$group)
+    levs <- levels(df$group)
+    # Only allow exactly 2 groups for this test
+    if(length(levs) != 2) return(ggplot() + labs(title = "Requires exactly 2 groups"))
+    # Explicitly set the comparison
+    comparison <- list(c(levs[1], levs[2]))
+    
     ggplot(df, aes(x = group, y = value, fill = group)) +
       geom_boxplot(alpha = 0.7, width = 0.3, outlier.colour = NA) +
       geom_jitter(width = 0.1, alpha = 0.5, shape = 21, size = 1.3) +
       theme_test() +
+      scale_fill_brewer(palette = "Set2") +
+      scale_color_brewer(palette = "Set2") +
       labs(x = "Group", y = "Value") +
       theme(axis.title.y = element_text(face = "bold", size = 14),
             axis.title.x = element_text(face = "bold", size = 14),
@@ -2349,15 +2422,29 @@ output$statistical_significance_square <- renderUI({
             legend.title = element_text(face = "bold", size = 14),
             legend.text = element_text(size = 12)) +
       theme(legend.position = "none") +
-      geom_flat_violin(position = position_nudge(x = 0.2, y = 0), alpha = 0.8, adjust = 0.9, width = 0.5)
+      geom_flat_violin(position = position_nudge(x = 0.2, y = 0), alpha = 0.8, adjust = 0.9, width = 0.5) +
+      ggpubr::stat_compare_means(comparisons = comparison, method = "t.test", paired = FALSE, 
+                                 label = "p.signif", size = 5.5, vjust = 0.5)
   }
 
   # --- Boxplot (dependant) ---
   plot_dependent_boxplot <- function(df) {
+    
+    # Always coerce to factor and drop unused levels
+    df$group <- factor(df$group)
+    levs <- levels(df$group)
+    # Only allow exactly 2 groups for this test
+    if(length(levs) != 2) return(ggplot() + labs(title = "Requires exactly 2 groups"))
+    # Explicitly set the comparison
+    comparison <- list(c(levs[1], levs[2]))
+    
+    
     ggplot(df, aes(x = group, y = value, fill = group)) +
       geom_boxplot(alpha = 0.7, width = 0.3, outlier.colour = NA) +
       geom_jitter(width = 0.1, alpha = 0.5, shape = 21, size = 1.3) +
       theme_test() +
+      scale_fill_brewer(palette = "Set2") +
+      scale_color_brewer(palette = "Set2") +
       labs(x = "Group", y = "Value") +
       theme(axis.title.y = element_text(face = "bold", size = 14),
             axis.title.x = element_text(face = "bold", size = 14),
@@ -2368,15 +2455,28 @@ output$statistical_significance_square <- renderUI({
             legend.title = element_text(face = "bold", size = 14),
             legend.text = element_text(size = 12)) +
       theme(legend.position = "none") +
-      geom_flat_violin(position = position_nudge(x = 0.2, y = 0), alpha = 0.8, adjust = 0.9, width = 0.5)
+      geom_flat_violin(position = position_nudge(x = 0.2, y = 0), alpha = 0.8, adjust = 0.9, width = 0.5) + 
+      ggpubr::stat_compare_means(comparisons = comparison, method = "t.test", paired = TRUE, 
+                                 label = "p.signif", size = 5.5, vjust = 0.5)
   }
 
   # --- Boxplot (Mann-Whitney) ---
   plot_mannwhitney_boxplot <- function(df) {
+    
+    # Always coerce to factor and drop unused levels
+    df$group <- factor(df$group)
+    levs <- levels(df$group)
+    # Only allow exactly 2 groups for this test
+    if(length(levs) != 2) return(ggplot() + labs(title = "Requires exactly 2 groups"))
+    # Explicitly set the comparison
+    comparison <- list(c(levs[1], levs[2]))
+    
     ggplot(df, aes(x = group, y = value, fill = group)) +
       geom_boxplot(alpha = 0.7, width = 0.3, outlier.colour = NA) +
       geom_jitter(width = 0.1, alpha = 0.5, shape = 21, size = 1.3) +
       theme_test() +
+      scale_fill_brewer(palette = "Set2") +
+      scale_color_brewer(palette = "Set2") +
       labs(x = "Group", y = "Value") +
       theme(axis.title.y = element_text(face = "bold", size = 14),
             axis.title.x = element_text(face = "bold", size = 14),
@@ -2387,15 +2487,28 @@ output$statistical_significance_square <- renderUI({
             legend.title = element_text(face = "bold", size = 14),
             legend.text = element_text(size = 12)) +
       theme(legend.position = "none") +
-      geom_flat_violin(position = position_nudge(x = 0.2, y = 0), alpha = 0.8, adjust = 0.9, width = 0.5)
+      geom_flat_violin(position = position_nudge(x = 0.2, y = 0), alpha = 0.8, adjust = 0.9, width = 0.5) +
+      ggpubr::stat_compare_means(comparisons = comparison, method = "wilcox.test", paired = FALSE, 
+                                 label = "p.signif", size = 5.5, vjust = 0.5)
   }
 
 # --- Boxplot (Wilcoxon signed-rank test) ---
   plot_wilcoxon_boxplot <- function(df) {
+    
+    # Always coerce to factor and drop unused levels
+    df$group <- factor(df$group)
+    levs <- levels(df$group)
+    # Only allow exactly 2 groups for this test
+    if(length(levs) != 2) return(ggplot() + labs(title = "Requires exactly 2 groups"))
+    # Explicitly set the comparison
+    comparison <- list(c(levs[1], levs[2]))
+    
     ggplot(df, aes(x = group, y = value, fill = group)) +
       geom_boxplot(alpha = 0.7, width = 0.3, outlier.colour = NA) +
       geom_jitter(width = 0.1, alpha = 0.5, shape = 21, size = 1.3) +
       theme_test() +
+      scale_fill_brewer(palette = "Set2") +
+      scale_color_brewer(palette = "Set2") +
       labs(x = "Group", y = "Value") +
       theme(axis.title.y = element_text(face = "bold", size = 14),
             axis.title.x = element_text(face = "bold", size = 14),
@@ -2406,13 +2519,22 @@ output$statistical_significance_square <- renderUI({
             legend.title = element_text(face = "bold", size = 14),
             legend.text = element_text(size = 12)) +
       theme(legend.position = "none") +
-      geom_flat_violin(position = position_nudge(x = 0.2, y = 0), alpha = 0.8, adjust = 0.9, width = 0.5)
+      geom_flat_violin(position = position_nudge(x = 0.2, y = 0), alpha = 0.8, adjust = 0.9, width = 0.5) + 
+      ggpubr::stat_compare_means(comparisons = comparison, method = "wilcox.test", paired = TRUE, 
+                                 label = "p.signif", size = 5.5, vjust = 0.5)
   }
 
 # --- Boxplot (Anova) ---
   plot_anova_boxplot <- function(df) {
+    
+    # Ensure group is a factor
+    df$group <- factor(df$group)
+    levs <- levels(df$group)
+    # Create all pairwise comparisons
+    comparisons <- combn(levs, 2, simplify = FALSE)
+    
     comparison <- combn(unique(df$group), 2, simplify = FALSE)
-    ggplot(df, aes(x = group, y = value, fill = group)) +
+    p <- ggplot(df, aes(x = group, y = value, fill = group)) +
       geom_boxplot(alpha = 0.7, width = 0.3, outlier.colour = NA) +
       geom_jitter(width = 0.1, alpha = 0.5, shape = 21, size = 1.3) +
       theme_test() +
@@ -2426,13 +2548,28 @@ output$statistical_significance_square <- renderUI({
             legend.title = element_text(face = "bold", size = 14),
             legend.text = element_text(size = 12)) +
       theme(legend.position = "none") +
-      geom_flat_violin(position = position_nudge(x = 0.2, y = 0), alpha = 0.8, adjust = 0.9, width = 0.5)
+      geom_flat_violin(position = position_nudge(x = 0.2, y = 0), alpha = 0.8, adjust = 0.9, width = 0.5) + 
+      ggpubr::stat_compare_means(comparisons = comparisons, method = "wilcox.test", paired = FALSE, 
+                                 label = "p.signif", size = 5.5, vjust = 0.5, 
+                                 p.adjust.method = "BH")
+    # Only apply Set2 if ≤ 8 groups
+    if(length(levs) <= 8) {
+      p <- p + scale_fill_brewer(palette = "Set2") + scale_color_brewer(palette = "Set2")
+    }
+    p
   }
 
   # --- Boxplot (Kruskal) ---
   plot_kruskal_boxplot <- function(df) {
+    
+    # Ensure group is a factor
+    df$group <- factor(df$group)
+    levs <- levels(df$group)
+    # Create all pairwise comparisons
+    comparisons <- combn(levs, 2, simplify = FALSE)
+    
     comparison <- combn(unique(df$group), 2, simplify = FALSE)
-    ggplot(df, aes(x = group, y = value, fill = group)) +
+    p <- ggplot(df, aes(x = group, y = value, fill = group)) +
       geom_boxplot(alpha = 0.7, width = 0.3, outlier.colour = NA) +
       geom_jitter(width = 0.1, alpha = 0.5, shape = 21, size = 1.3) +
       theme_test() +
@@ -2446,7 +2583,15 @@ output$statistical_significance_square <- renderUI({
             legend.title = element_text(face = "bold", size = 14),
             legend.text = element_text(size = 12)) +
       theme(legend.position = "none") +
-      geom_flat_violin(position = position_nudge(x = 0.2, y = 0), alpha = 0.8, adjust = 0.9, width = 0.5)
+      geom_flat_violin(position = position_nudge(x = 0.2, y = 0), alpha = 0.8, adjust = 0.9, width = 0.5) + 
+      ggpubr::stat_compare_means(comparisons = comparisons, method = "wilcox.test", paired = FALSE, 
+                                 label = "p.signif", size = 5.5, vjust = 0.5, 
+                                 p.adjust.method = "BH")
+    # Only apply Set2 if ≤ 8 groups
+    if(length(levs) <= 8) {
+      p <- p + scale_fill_brewer(palette = "Set2") + scale_color_brewer(palette = "Set2")
+    }
+    p
   }
 
   # Now use a switch for easy expansion
@@ -2469,132 +2614,6 @@ output$statistical_significance_square <- renderUI({
 
   # --- Download Boxplot ---
 
-## Independent t-test
-  plot_independent_boxplot <- function(df) {
-    comparison <- combn(unique(df$group), 2, simplify = FALSE)
-    ggplot(df, aes(x = group, y = value, fill = group)) +
-      geom_boxplot(alpha = 0.7, width = 0.3, outlier.colour = NA) +
-      geom_jitter(width = 0.1, alpha = 0.5, shape = 21, size = 1.3) +
-      theme_test() +
-      labs(x = "Group", y = "Value") +
-      theme(axis.title.y = element_text(face = "bold", size = 14),
-            axis.title.x = element_text(face = "bold", size = 14),
-            axis.text.y = element_text(hjust = 0.5, vjust = 0.5, colour = "black", size = 12),
-            axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1,
-                                       colour = "black", size = 12),
-            plot.background = element_rect(fill = "white"),
-            legend.title = element_text(face = "bold", size = 14),
-            legend.text = element_text(size = 12)) +
-      theme(legend.position = "none") +
-      geom_flat_violin(position = position_nudge(x = 0.2, y = 0), alpha = 0.8, adjust = 0.9, width = 0.5)
-  }
-
-## Dependent t-test
-  plot_dependent_boxplot <- function(df) {
-    group_levels <- levels(df$group)
-    v1 <- df %>% filter(group == group_levels[1]) %>% pull(value)
-    v2 <- df %>% filter(group == group_levels[2]) %>% pull(value)
-    n <- min(length(v1), length(v2))
-    box_data <- data.frame(
-      Condition = rep(c(group_levels[1], group_levels[2]), each = n),
-      Value = c(v1[1:n], v2[1:n])
-    )
-    ggplot(box_data, aes(x = Condition, y = Value, fill = Condition)) +
-      geom_boxplot(alpha = 0.7, width = 0.3, outlier.colour = NA) +
-      geom_jitter(width = 0.1, alpha = 0.5, shape = 21, size = 1.3) +
-      theme_test() +
-      labs(x = "Group", y = "Value") +
-      theme(axis.title.y = element_text(face = "bold", size = 14),
-            axis.title.x = element_text(face = "bold", size = 14),
-            axis.text.y = element_text(hjust = 0.5, vjust = 0.5, colour = "black", size = 12),
-            axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1,
-                                       colour = "black", size = 12),
-            plot.background = element_rect(fill = "white"),
-            legend.title = element_text(face = "bold", size = 14),
-            legend.text = element_text(size = 12)) +
-      theme(legend.position = "none") +
-      geom_flat_violin(position = position_nudge(x = 0.2, y = 0), alpha = 0.8, adjust = 0.9, width = 0.5)
-  }
-
-  ## Mann-Whitney
-  plot_mannwhitney_boxplot <- function(df) {
-    ggplot(df, aes(x = group, y = value, fill = group)) +
-      geom_boxplot(alpha = 0.7, width = 0.3, outlier.colour = NA) +
-      geom_jitter(width = 0.1, alpha = 0.5, shape = 21, size = 1.3) +
-      theme_test() +
-      labs(x = "Group", y = "Value") +
-      theme(axis.title.y = element_text(face = "bold", size = 14),
-            axis.title.x = element_text(face = "bold", size = 14),
-            axis.text.y = element_text(hjust = 0.5, vjust = 0.5, colour = "black", size = 12),
-            axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1,
-                                       colour = "black", size = 12),
-            plot.background = element_rect(fill = "white"),
-            legend.title = element_text(face = "bold", size = 14),
-            legend.text = element_text(size = 12)) +
-      theme(legend.position = "none") +
-      geom_flat_violin(position = position_nudge(x = 0.2, y = 0), alpha = 0.8, adjust = 0.9, width = 0.5)
-  }
-
-## Wilcoxon signed-rank
-  plot_wilcoxon_boxplot <- function(df) {
-    ggplot(df, aes(x = group, y = value, fill = group)) +
-      geom_boxplot(alpha = 0.7, width = 0.3, outlier.colour = NA) +
-      geom_jitter(width = 0.1, alpha = 0.5, shape = 21, size = 1.3) +
-      theme_test() +
-      labs(x = "Group", y = "Value") +
-      theme(axis.title.y = element_text(face = "bold", size = 14),
-            axis.title.x = element_text(face = "bold", size = 14),
-            axis.text.y = element_text(hjust = 0.5, vjust = 0.5, colour = "black", size = 12),
-            axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1,
-                                       colour = "black", size = 12),
-            plot.background = element_rect(fill = "white"),
-            legend.title = element_text(face = "bold", size = 14),
-            legend.text = element_text(size = 12)) +
-      theme(legend.position = "none") +
-      geom_flat_violin(position = position_nudge(x = 0.2, y = 0), alpha = 0.8, adjust = 0.9, width = 0.5)
-  }
-
-## One-way ANOVA
-  plot_anova_boxplot <- function(df) {
-    comparison <- combn(unique(df$group), 2, simplify = FALSE)
-    ggplot(df, aes(x = group, y = value, fill = group)) +
-      geom_boxplot(alpha = 0.7, width = 0.3, outlier.colour = NA) +
-      geom_jitter(width = 0.1, alpha = 0.5, shape = 21, size = 1.3) +
-      theme_test() +
-      labs(x = "", y = "Value") +
-      theme(axis.title.y = element_text(face = "bold", size = 14),
-            axis.title.x = element_text(face = "bold", size = 14),
-            axis.text.y = element_text(hjust = 0.5, vjust = 0.5, colour = "black", size = 12),
-            axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1,
-                                       colour = "black", size = 12),
-            plot.background = element_rect(fill = "white"),
-            legend.title = element_text(face = "bold", size = 14),
-            legend.text = element_text(size = 12)) +
-      theme(legend.position = "none") +
-      geom_flat_violin(position = position_nudge(x = 0.2, y = 0), alpha = 0.8, adjust = 0.9, width = 0.5)
-  }
-
-# --- Kruskal-Wallis ---
-  plot_kruskal_boxplot <- function(df) {
-    comparison <- combn(unique(df$group), 2, simplify = FALSE)
-    ggplot(df, aes(x = group, y = value, fill = group)) +
-      geom_boxplot(alpha = 0.7, width = 0.3, outlier.colour = NA) +
-      geom_jitter(width = 0.1, alpha = 0.5, shape = 21, size = 1.3) +
-      theme_test() +
-      labs(x = "Group", y = "Value") +
-      theme(axis.title.y = element_text(face = "bold", size = 14),
-            axis.title.x = element_text(face = "bold", size = 14),
-            axis.text.y = element_text(hjust = 0.5, vjust = 0.5, colour = "black", size = 12),
-            axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1,
-                                       colour = "black", size = 12),
-            plot.background = element_rect(fill = "white"),
-            legend.title = element_text(face = "bold", size = 14),
-            legend.text = element_text(size = 12)) +
-      theme(legend.position = "none") +
-      geom_flat_violin(position = position_nudge(x = 0.2, y = 0), alpha = 0.8, adjust = 0.9, width = 0.5)
-  }
-
-
   output$download_boxplot <- downloadHandler(
     filename = function() {
       paste("boxplot_", Sys.Date(), ".png", sep = "")
@@ -2614,7 +2633,7 @@ output$statistical_significance_square <- renderUI({
         NULL
       )
       if (is.null(p)) return(NULL)
-      ggsave(file, plot = p, width = 8, height = 4, dpi = 600, bg = "white")
+      ggsave(file, plot = p, width = 5, height = 4, dpi = 600, bg = "white")
     }
   )
 ############################################################################################################
@@ -3061,7 +3080,8 @@ output$statistical_significance_square <- renderUI({
       dplyr::ungroup()
 
     output$fisher_plot <- renderPlot({
-      ggplot2::ggplot(
+      n_fill <- length(unique(plot_df[[input$cat2]]))
+      p <- ggplot2::ggplot(
         plot_df,
         ggplot2::aes(
           x = .data[[input$cat1]],
@@ -3072,10 +3092,14 @@ output$statistical_significance_square <- renderUI({
         ggplot2::geom_bar(stat = "identity", col = "black") +
         ggplot2::theme_test() +
         ggplot2::xlab("") +
-        ggplot2::ylab("Proportion") +
+        ggplot2::ylab("Proportion (%)") +
         theme(axis.text.x = element_text(size = 12, angle = 45,vjust = 1, hjust = 1, colour = "black")) +
         theme(axis.text.y = element_text(size = 12, colour = "black")) +
         theme(legend.text=element_text(size=12))
+      if (n_fill <= 8) {
+        p <- p + scale_fill_brewer(palette = "Set2") + scale_color_brewer(palette = "Set2")
+      }
+      p
     })
     # Show download button after plot is made
     shinyjs::show("download_fisher_plot")
@@ -3123,12 +3147,15 @@ output$statistical_significance_square <- renderUI({
         ggplot2::geom_bar(stat = "identity", col = "black") +
         ggplot2::theme_test() +
         ggplot2::xlab("") +
-        ggplot2::ylab("Proportion") +
+        ggplot2::ylab("Proportion (%)") +
         ggplot2::theme(
           axis.text.x = ggplot2::element_text(size = 12, angle = 45, vjust = 1, hjust = 1, colour = "black"),
           axis.text.y = ggplot2::element_text(size = 12, colour = "black"),
           legend.text = ggplot2::element_text(size = 12)
         )
+      if (n_fill <= 8) {
+        p <- p + scale_fill_brewer(palette = "Set2") + scale_color_brewer(palette = "Set2")
+      }
 
       ggplot2::ggsave(file, plot = p, width = plot_width, height = plot_height, dpi = 600, bg = "white")
     }

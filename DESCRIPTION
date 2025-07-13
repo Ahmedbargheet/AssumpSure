@@ -14,6 +14,7 @@ Imports:
     shinyscreenshot,
     fontawesome,
     tidyverse,
+    ggpubr,
     rstatix,
     knitr,
     compositions,
