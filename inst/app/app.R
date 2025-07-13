@@ -3093,9 +3093,11 @@ output$statistical_significance_square <- renderUI({
         ggplot2::theme_test() +
         ggplot2::xlab("") +
         ggplot2::ylab("Proportion (%)") +
-        theme(axis.text.x = element_text(size = 12, angle = 45,vjust = 1, hjust = 1, colour = "black")) +
+        theme(axis.text.x = element_text(size = 12, angle = 45, vjust = 1, hjust = 1, colour = "black")) +
         theme(axis.text.y = element_text(size = 12, colour = "black")) +
-        theme(legend.text=element_text(size=12))
+        theme(axis.title.y = element_text(size = 14, face = "bold", colour = "black")) +
+        theme(legend.text=element_text(size=12)) + 
+        theme(legend.title = element_text(face = "bold", size = 14),legend.text=element_text(size = 12)) 
       if (n_fill <= 8) {
         p <- p + scale_fill_brewer(palette = "Set2") + scale_color_brewer(palette = "Set2")
       }
