@@ -1,31 +1,6 @@
 library(shiny)
 library(shinyjs)
-library(shinyBS)
 library(bslib)
-library(htmltools)
-library(shinyscreenshot)
-library(fontawesome)
-library(tidyverse)
-library(ggpubr)
-library(rstatix)
-library(knitr)
-library(compositions)
-library(car)
-library(correlation)
-library(MVN)
-library(performance)
-library(modelbased)
-library(patchwork)
-library(see)
-library(bestNormalize)
-library(DHARMa)
-library(lmerTest)
-library(MASS)
-library(nnet)
-library(broom)
-library(broom.mixed)
-library(DT)
-library(sjPlot)
 source("https://gist.githubusercontent.com/benmarwick/2a1bb0133ff568cbe28d/raw/fb53bd97121f7f9ce947837ef1a4c65a73bffb3f/geom_flat_violin.R")
 
 # ----- UI -----
@@ -271,7 +246,7 @@ function corScreenshotWithoutScatterBtn() {
   }, 200); // trigger screenshot after 0.2s
 }
   "))
-    )
+    ),
     ),
 
   
@@ -1107,12 +1082,12 @@ server <- function(input, output, session) {
         tryCatch({
           group_levels <- levels(df$group)
           if (length(group_levels) != 2) stop("Need exactly 2 groups for paired t-test.")
-          v1 <- df %>% filter(group == group_levels[1]) %>% pull(value)
-          v2 <- df %>% filter(group == group_levels[2]) %>% pull(value)
+          v1 <- df %>% dplyr::filter(group == group_levels[1]) %>% pull(value)
+          v2 <- df %>% dplyr::filter(group == group_levels[2]) %>% pull(value)
           n <- min(length(v1), length(v2))
           if (n < 3) stop("Not enough data in one or both groups.")
           diff <- v1[1:n] - v2[1:n]
-          shapiro_diff <- shapiro_test(diff)
+          shapiro_diff <- rstatix::shapiro_test(diff)
           normality_passed <- if ("p.value" %in% names(shapiro_diff)) shapiro_diff$p.value > 0.05 else FALSE
           normality_passed
         }, error = function(e) {
@@ -1140,20 +1115,31 @@ server <- function(input, output, session) {
     test_type <- input$test_type
     df <- processed_data()
     ngroups <- if (!is.null(df)) nlevels(df$group) else 0
-
-    if (
-      (test_type %in% c("mannwhitney", "wilcoxon_signed") && ngroups != 2) ||
-      !assumptions_met()
-    ) {
-      shinyjs::disable("plot_boxplot")
-      shinyjs::hide("plot_boxplot")
-      shinyjs::disable("download_boxplot")
-      shinyjs::hide("download_boxplot")
-    } else {
+    
+    # Define when the buttons should be shown
+    show_buttons <- TRUE
+    
+    if (test_type %in% c("mannwhitney", "wilcoxon_signed")) {
+      if (ngroups != 2) show_buttons <- FALSE
+    }
+    
+    if (test_type == "kruskal" && ngroups < 3) {
+      show_buttons <- FALSE
+    }
+    
+    if (!assumptions_met()) show_buttons <- FALSE
+    if (!should_show_test_result()) show_buttons <- FALSE
+    
+    if (show_buttons) {
       shinyjs::enable("plot_boxplot")
       shinyjs::show("plot_boxplot")
       shinyjs::enable("download_boxplot")
       shinyjs::show("download_boxplot")
+    } else {
+      shinyjs::disable("plot_boxplot")
+      shinyjs::hide("plot_boxplot")
+      shinyjs::disable("download_boxplot")
+      shinyjs::hide("download_boxplot")
     }
   })
 
@@ -1250,9 +1236,9 @@ server <- function(input, output, session) {
     # Proceed as normal
     df <- df0 %>%
       dplyr::select(value = !!sym(input$value_col), group = !!sym(input$group_col)) %>%
-      mutate(value = as.numeric(as.character(value)),
+      dplyr::mutate(value = as.numeric(as.character(value)),
              group = as.factor(group)) %>%
-      filter(!is.na(value), !is.na(group)) %>%
+      dplyr::filter(!is.na(value), !is.na(group)) %>%
       droplevels()
     # New: Minimum checks
     ngroups <- nlevels(df$group)
@@ -1311,9 +1297,9 @@ server <- function(input, output, session) {
       }
       df <- df0 %>%
         dplyr::select(value = !!sym(input$value_col), group = !!sym(input$group_col)) %>%
-        mutate(value = as.numeric(as.character(value)),
+        dplyr::mutate(value = as.numeric(as.character(value)),
                group = as.factor(group)) %>%
-        filter(!is.na(value), !is.na(group)) %>%
+        dplyr::filter(!is.na(value), !is.na(group)) %>%
         droplevels()
       processed_data(df)
     }
@@ -1343,9 +1329,9 @@ server <- function(input, output, session) {
       }
       df <- df0 %>%
         dplyr::select(value = !!sym(input$value_col), group = !!sym(input$group_col)) %>%
-        mutate(value = as.numeric(as.character(value)),
+        dplyr::mutate(value = as.numeric(as.character(value)),
                group = as.factor(group)) %>%
-        filter(!is.na(value), !is.na(group)) %>%
+        dplyr::filter(!is.na(value), !is.na(group)) %>%
         droplevels()
       processed_data(df)
     }
@@ -1375,9 +1361,9 @@ server <- function(input, output, session) {
       }
       df <- df0 %>%
         dplyr::select(value = !!sym(input$value_col), group = !!sym(input$group_col)) %>%
-        mutate(value = as.numeric(as.character(value)),
+        dplyr::mutate(value = as.numeric(as.character(value)),
                group = as.factor(group)) %>%
-        filter(!is.na(value), !is.na(group)) %>%
+        dplyr::filter(!is.na(value), !is.na(group)) %>%
         droplevels()
       processed_data(df)
     }
@@ -1593,7 +1579,7 @@ output$assumption_content <- renderUI({
   # --- Shapiro-Wilk Output Functions ---
 # Independent t-test
 shapiro_text_independent <- function(df) {
-  print(df %>% group_by(group) %>% shapiro_test(value))
+  print(df %>% dplyr::group_by(group) %>% rstatix::shapiro_test(value))
 }
 
 # Dependent t-test
@@ -1603,19 +1589,19 @@ shapiro_text_dependent <- function(df) {
     cat("Error: Need exactly 2 groups for paired test.")
     return()
   }
-  values1 <- df %>% filter(group == group_levels[1]) %>% pull(value)
-  values2 <- df %>% filter(group == group_levels[2]) %>% pull(value)
+  values1 <- df %>% dplyr::filter(group == group_levels[1]) %>% pull(value)
+  values2 <- df %>% dplyr::filter(group == group_levels[2]) %>% pull(value)
   if (length(values1) != length(values2) || length(values1) < 3) {
     cat("Cannot run paired test: Unequal or insufficient values per group. Check your data.")
     return()
   }
   diff <- values1 - values2
-  print(shapiro_test(diff))
+  print(rstatix::shapiro_test(diff))
 }
 
 # ANOVA
 shapiro_text_anova <- function(df) {
-  print(df %>% group_by(group) %>% shapiro_test(value))
+  print(df %>% dplyr::group_by(group) %>% rstatix::shapiro_test(value))
 }
 
 # shapiro_text_anova <- function(df) { ... }
@@ -1650,7 +1636,7 @@ output$levene_text <- renderPrint({
   # --- QQ Plot ---
 # independent t-test
   qq_plot_independent <- function(df) {
-    ggplot(df, aes(sample = value, color = group)) +
+    ggplot2::ggplot(df, aes(sample = value, color = group)) +
       stat_qq() +
       stat_qq_line(color = "#E41A1C") +
       theme_test() +
@@ -1672,11 +1658,11 @@ output$levene_text <- renderPrint({
   qq_plot_dependent <- function(df) {
     group_levels <- levels(df$group)
     if (length(group_levels) != 2) return()
-    v1 <- df %>% filter(group == group_levels[1]) %>% pull(value)
-    v2 <- df %>% filter(group == group_levels[2]) %>% pull(value)
+    v1 <- df %>% dplyr::filter(group == group_levels[1]) %>% pull(value)
+    v2 <- df %>% dplyr::filter(group == group_levels[2]) %>% pull(value)
     if (length(v1) != length(v2) || length(v1) < 3) return()
     diff <- v1 - v2
-    ggplot(data.frame(diff = diff), aes(sample = diff)) +
+    ggplot2::ggplot(data.frame(diff = diff), aes(sample = diff)) +
       stat_qq(color = "#66C2A5") +
       stat_qq_line(color = "#E41A1C") +
       theme_test() +
@@ -1696,7 +1682,7 @@ output$levene_text <- renderPrint({
 
   # One-way ANOVA
   qq_plot_anova <- function(df) {
-    ggplot(df, aes(sample = value, color = group)) +
+    ggplot2::ggplot(df, aes(sample = value, color = group)) +
       stat_qq() +
       stat_qq_line(color = "#E41A1C") +
       theme_test() +
@@ -1734,7 +1720,7 @@ output$levene_text <- renderPrint({
   # --- Histogram Plot ---
 # independent t-test
   histogram_plot_independent <- function(df) {
-    ggplot(df, aes(x = value, fill = group, colour = group)) +
+    ggplot2::ggplot(df, aes(x = value, fill = group, colour = group)) +
       geom_histogram(aes(y = after_stat(density)), bins = 30, color = "black", alpha = 0.7) +
       geom_density(color = "#b2182b", size = 1.2, alpha = 0.7, show.legend = FALSE) +
       theme_test() +
@@ -1757,11 +1743,11 @@ output$levene_text <- renderPrint({
   histogram_plot_dependent <- function(df) {
     group_levels <- levels(df$group)
     if (length(group_levels) != 2) return()
-    v1 <- df %>% filter(group == group_levels[1]) %>% pull(value)
-    v2 <- df %>% filter(group == group_levels[2]) %>% pull(value)
+    v1 <- df %>% dplyr::filter(group == group_levels[1]) %>% pull(value)
+    v2 <- df %>% dplyr::filter(group == group_levels[2]) %>% pull(value)
     if (length(v1) != length(v2) || length(v1) < 3) return()
     diff <- v1 - v2
-    ggplot(data.frame(diff = diff), aes(x = diff)) +
+    ggplot2::ggplot(data.frame(diff = diff), aes(x = diff)) +
       geom_histogram(aes(y = after_stat(density)), bins = 30, color = "black", 
                      fill = "#66C2A5", alpha = 0.7) +
       geom_density(color = "#b2182b", fill = "#66C2A5", size = 1.2, alpha = 0.7, show.legend = FALSE) +
@@ -1780,7 +1766,7 @@ output$levene_text <- renderPrint({
 
   # One-way ANOVA
   histogram_plot_anova <- function(df) {
-    ggplot(df, aes(x = value, fill = group, colour = group)) +
+    ggplot2::ggplot(df, aes(x = value, fill = group, colour = group)) +
       geom_histogram(aes(y = after_stat(density)), bins = 30, color = "black", alpha = 0.7) +
       geom_density(color = "#b2182b", size = 1.2, alpha = 0.7, show.legend = FALSE) +
       theme_test() +
@@ -1892,8 +1878,8 @@ output$levene_text <- renderPrint({
   assumption_summary_dependent <- function(df) {
     group_levels <- levels(df$group)
     if (length(group_levels) != 2) return()
-    v1 <- df %>% filter(group == group_levels[1]) %>% pull(value)
-    v2 <- df %>% filter(group == group_levels[2]) %>% pull(value)
+    v1 <- df %>% dplyr::filter(group == group_levels[1]) %>% pull(value)
+    v2 <- df %>% dplyr::filter(group == group_levels[2]) %>% pull(value)
     if (length(v1) != length(v2) || length(v1) < 3) {
       return(div(
         style = "background-color: orange; color: white; padding: 10px; border-radius: 5px;",
@@ -1901,7 +1887,7 @@ output$levene_text <- renderPrint({
       ))
     }
     diff <- v1 - v2
-    shapiro_diff <- shapiro_test(diff)
+    shapiro_diff <- rstatix::shapiro_test(diff)
     shapiro_p <- if ("p.value" %in% names(shapiro_diff)) shapiro_diff$p.value else NA
     
     if (!is.na(shapiro_p) && shapiro_p > 0.10) {
@@ -1995,7 +1981,7 @@ output$levene_text <- renderPrint({
                        type = "error")
       return(NULL)
     }
-    df %>% levene_test(value ~ group)
+    df %>% rstatix::levene_test(value ~ group)
   })
 
 
@@ -2017,7 +2003,7 @@ output$levene_text <- renderPrint({
       showNotification(strong("All groups must have between 3 and 5000 values for normality testing (Shapiro-Wilk)."), type = "error")
       return(NULL)
     }
-    df %>% group_by(group) %>% shapiro_test(value)
+    df %>% dplyr::group_by(group) %>% rstatix::shapiro_test(value)
   }
 
 ## Dependent t-test Shapiro result
@@ -2032,15 +2018,15 @@ output$levene_text <- renderPrint({
     }
     group_levels <- levels(df$group)
     if (length(group_levels) != 2) return(NULL)
-    values1 <- df %>% filter(group == group_levels[1]) %>% pull(value)
-    values2 <- df %>% filter(group == group_levels[2]) %>% pull(value)
+    values1 <- df %>% dplyr::filter(group == group_levels[1]) %>% pull(value)
+    values2 <- df %>% dplyr::filter(group == group_levels[2]) %>% pull(value)
     if (length(values1) != length(values2) || length(values1) < 3) return(NULL)
     diff <- values1 - values2
     if (length(diff) < 3 | length(diff) > 5000) {
       showNotification(strong("Need between 3 and 5000 paired values for normality testing (Shapiro-Wilk)."), type = "error")
       return(NULL)
     }
-    shapiro_test(diff)
+    rstatix::shapiro_test(diff)
   }
 
 
@@ -2060,7 +2046,7 @@ output$levene_text <- renderPrint({
       showNotification(strong("All groups must have between 3 and 5000 values for normality testing (Shapiro-Wilk)."), type = "error")
       return(NULL)
     }
-    df %>% group_by(group) %>% shapiro_test(value)
+    df %>% dplyr::group_by(group) %>% rstatix::shapiro_test(value)
   }
 
   shapiro_result <- reactive({
@@ -2125,16 +2111,18 @@ output$levene_text <- renderPrint({
   
 
 ## Wilcoxon signed-rank test
-  run_wilcoxon_signed_test <- function(df) {
-    ngroups <- nlevels(df$group)
-    if (ngroups != 2) {
-      showNotification(strong("Wilcoxon signed-rank test requires exactly 2 groups. For more than 2 groups, use Kruskal-Wallis."), type = "error")
-      return(data.frame(p = NA))
-    }
-    tryCatch({
-      rstatix::wilcox_test(df, value ~ group, paired = TRUE, detailed = TRUE)
-    }, error = function(e) data.frame(p = NA))
-  }
+run_wilcoxon_signed_test <- function(df) {
+  ngroups <- nlevels(df$group)
+  if (ngroups != 2) return(data.frame(p = NA))
+
+  group_sizes <- table(df$group)
+  if (length(unique(group_sizes)) != 1) return(data.frame(p = NA))
+
+  tryCatch({
+    rstatix::wilcox_test(df, value ~ group, paired = TRUE, detailed = TRUE)
+  }, error = function(e) data.frame(p = NA))
+}
+  
 
 ## One-way ANOVA
   run_anova_test <- function(df) {
@@ -2158,6 +2146,9 @@ output$levene_text <- renderPrint({
     if (is.null(df)) return(NULL)
     if (!(input$test_type %in% c("anova", "kruskal"))) return(NULL)
     if (!assumptions_met()) return(NULL)
+    
+    # Extra check for Kruskal
+    if (input$test_type == "kruskal" && nlevels(df$group) < 3) return(NULL)
 
     pval <- if (input$test_type == "anova") {
       run_anova_test(df)$p[1]
@@ -2236,9 +2227,26 @@ output$levene_text <- renderPrint({
 
     # Mark test as clicked
     run_test_clicked(Sys.time())
+    
+    df <- processed_data()
+    
+    # Show this message on every button click, not inside renderUI!
+    if (input$test_type == "wilcoxon_signed") {
+      ngroups <- nlevels(df$group)
+      if (ngroups != 2) {
+        showNotification(strong("Wilcoxon signed-rank test requires exactly 2 groups. For more than 2 groups, use Kruskal–Wallis."), type = "error", duration = 9)
+        return()
+      }
+      group_sizes <- table(df$group)
+      if (length(unique(group_sizes)) != 1) {
+        showNotification(strong("Wilcoxon signed-rank test requires paired samples with equal group sizes. Use Mann–Whitney test for unpaired or unequal groups."), type = "error", duration = 9)
+        return()
+      }
+    }
 
     # Output rendering
     output$test_result_with_square <- renderUI({
+      if (!should_show_test_result()) return(NULL)
       df <- processed_data()
       if (is.null(df)) return(NULL)
       if (input$test_type == "kruskal") {
@@ -2261,6 +2269,7 @@ output$levene_text <- renderPrint({
       }
     })
     output$actual_test_result <- renderPrint({
+      if (!should_show_test_result()) return(NULL)
       df <- processed_data()
       switch(
         input$test_type,
@@ -2318,6 +2327,24 @@ output$levene_text <- renderPrint({
     )
   }
 
+  should_show_test_result <- reactive({
+    df <- processed_data()
+    if (is.null(df)) return(FALSE)
+    res <- switch(
+      input$test_type,
+      "wilcoxon_signed" = run_wilcoxon_signed_test(df),
+      "mannwhitney"     = run_mannwhitney_test(df),
+      "independent_ttest" = run_independent_test(df),
+      "dependent_ttest"   = run_dependent_test(df),
+      "anova" = run_anova_test(df),
+      "kruskal" = run_kruskal_test(df),
+      NULL
+    )
+    if (is.null(res)) return(FALSE)
+    if ("p" %in% names(res) && is.na(res$p[1])) return(FALSE)
+    TRUE
+  })
+  
 
   # --- Put these right after the above block ---
   observeEvent(input$file,     { run_test_clicked(FALSE) })
@@ -2402,11 +2429,11 @@ output$statistical_significance_square <- renderUI({
     df$group <- factor(df$group)
     levs <- levels(df$group)
     # Only allow exactly 2 groups for this test
-    if(length(levs) != 2) return(ggplot() + labs(title = "Requires exactly 2 groups"))
+    if(length(levs) != 2) return(ggplot2::ggplot() + labs(title = "Requires exactly 2 groups"))
     # Explicitly set the comparison
     comparison <- list(c(levs[1], levs[2]))
     
-    ggplot(df, aes(x = group, y = value, fill = group)) +
+    ggplot2::ggplot(df, aes(x = group, y = value, fill = group)) +
       geom_boxplot(alpha = 0.7, width = 0.3, outlier.colour = NA) +
       geom_jitter(width = 0.1, alpha = 0.5, shape = 21, size = 1.3) +
       theme_test() +
@@ -2434,12 +2461,12 @@ output$statistical_significance_square <- renderUI({
     df$group <- factor(df$group)
     levs <- levels(df$group)
     # Only allow exactly 2 groups for this test
-    if(length(levs) != 2) return(ggplot() + labs(title = "Requires exactly 2 groups"))
+    if(length(levs) != 2) return(ggplot2::ggplot() + labs(title = "Requires exactly 2 groups"))
     # Explicitly set the comparison
     comparison <- list(c(levs[1], levs[2]))
     
     
-    ggplot(df, aes(x = group, y = value, fill = group)) +
+    ggplot2::ggplot(df, aes(x = group, y = value, fill = group)) +
       geom_boxplot(alpha = 0.7, width = 0.3, outlier.colour = NA) +
       geom_jitter(width = 0.1, alpha = 0.5, shape = 21, size = 1.3) +
       theme_test() +
@@ -2467,11 +2494,11 @@ output$statistical_significance_square <- renderUI({
     df$group <- factor(df$group)
     levs <- levels(df$group)
     # Only allow exactly 2 groups for this test
-    if(length(levs) != 2) return(ggplot() + labs(title = "Requires exactly 2 groups"))
+    if(length(levs) != 2) return(ggplot2::ggplot() + labs(title = "Requires exactly 2 groups"))
     # Explicitly set the comparison
     comparison <- list(c(levs[1], levs[2]))
     
-    ggplot(df, aes(x = group, y = value, fill = group)) +
+    ggplot2::ggplot(df, aes(x = group, y = value, fill = group)) +
       geom_boxplot(alpha = 0.7, width = 0.3, outlier.colour = NA) +
       geom_jitter(width = 0.1, alpha = 0.5, shape = 21, size = 1.3) +
       theme_test() +
@@ -2499,11 +2526,11 @@ output$statistical_significance_square <- renderUI({
     df$group <- factor(df$group)
     levs <- levels(df$group)
     # Only allow exactly 2 groups for this test
-    if(length(levs) != 2) return(ggplot() + labs(title = "Requires exactly 2 groups"))
+    if(length(levs) != 2) return(ggplot2::ggplot() + labs(title = "Requires exactly 2 groups"))
     # Explicitly set the comparison
     comparison <- list(c(levs[1], levs[2]))
     
-    ggplot(df, aes(x = group, y = value, fill = group)) +
+    ggplot2::ggplot(df, aes(x = group, y = value, fill = group)) +
       geom_boxplot(alpha = 0.7, width = 0.3, outlier.colour = NA) +
       geom_jitter(width = 0.1, alpha = 0.5, shape = 21, size = 1.3) +
       theme_test() +
@@ -2534,7 +2561,7 @@ output$statistical_significance_square <- renderUI({
     comparisons <- combn(levs, 2, simplify = FALSE)
     
     comparison <- combn(unique(df$group), 2, simplify = FALSE)
-    p <- ggplot(df, aes(x = group, y = value, fill = group)) +
+    p <- ggplot2::ggplot(df, aes(x = group, y = value, fill = group)) +
       geom_boxplot(alpha = 0.7, width = 0.3, outlier.colour = NA) +
       geom_jitter(width = 0.1, alpha = 0.5, shape = 21, size = 1.3) +
       theme_test() +
@@ -2569,7 +2596,7 @@ output$statistical_significance_square <- renderUI({
     comparisons <- combn(levs, 2, simplify = FALSE)
     
     comparison <- combn(unique(df$group), 2, simplify = FALSE)
-    p <- ggplot(df, aes(x = group, y = value, fill = group)) +
+    p <- ggplot2::ggplot(df, aes(x = group, y = value, fill = group)) +
       geom_boxplot(alpha = 0.7, width = 0.3, outlier.colour = NA) +
       geom_jitter(width = 0.1, alpha = 0.5, shape = 21, size = 1.3) +
       theme_test() +
@@ -3360,7 +3387,7 @@ output$statistical_significance_square <- renderUI({
       # Only numeric, and replace zeros
       df_num <- df %>%
         dplyr::select(where(is.numeric)) %>%
-        mutate(across(everything(), ~replace(.x, .x == 0, 0.0001)))
+        dplyr::mutate(across(everything(), ~replace(.x, .x == 0, 0.0001)))
 
       # Make sure no negative/zero values remain
       if (any(df_num <= 0, na.rm = TRUE)) {
@@ -3479,7 +3506,7 @@ output$statistical_significance_square <- renderUI({
     # --- Outliers (car::outlierTest)
     lm_model <- lm(v2 ~ v1)
     car_outliers <- tryCatch({
-      outlierTest(lm_model)
+      car::outlierTest(lm_model)
     }, error = function(e) NULL)
     car_outliers_val(car_outliers)
 
@@ -3503,7 +3530,7 @@ output$statistical_significance_square <- renderUI({
       ) {
         return(div(style = "background-color:#f5f5f5; color:#333; padding:18px; border-radius:8px; margin-top:10px;",
                    icon("exclamation-circle", lib = "font-awesome"),
-                   strong("Assumption checks require exactly two features. Please select two features and check assumptions.")
+                   strong("Select exactly two features to check assumptions, or click 'Run Correlation' for the full matrix.")
         ))
       }
       tagList(
@@ -3769,7 +3796,7 @@ output$statistical_significance_square <- renderUI({
 
 
   make_scatter_plot <- function(v1, v2, var1_name, var2_name) {
-    ggplot(data.frame(x = v1, y = v2), aes(x, y)) +
+    ggplot2::ggplot(data.frame(x = v1, y = v2), aes(x, y)) +
       geom_point(size = 2, alpha = 0.7) +
       geom_smooth(method = "lm", se = FALSE, color = "red") +
       theme_bw() +
@@ -3944,54 +3971,6 @@ output$statistical_significance_square <- renderUI({
                                        p_adjust = input$cor_p_adjust)
     DT::datatable(as.data.frame(cor_df), options = list(scrollX = TRUE))
   })
-
-
-
-
-
-
-
-      # safe_pass_normality <- (
-      #   !is.null(shap1_val()) && !is.null(shap2_val()) &&
-      #     !is.null(shap1_val()$p.value) && !is.null(shap2_val()$p.value) &&
-      #     shap1_val()$p.value > 0.05 && shap2_val()$p.value > 0.05
-      # )
-      # Now, check if assumptions are actually met
-  #     pass_linearity <- !is.null(scatter_plot_val())
-  #     pass_normality <- safe_shapiro_pval(shap1_val()) && safe_shapiro_pval(shap2_val()) &&
-  #       shap1_val()$p.value > 0.05 && shap2_val()$p.value > 0.05
-  #     pass_bivnorm  <- !is.na(mvn_p_val()) && isTRUE(mvn_ok_val())
-  #     pass_outliers <- is.null(car_outliers_val()) ||
-  #       (inherits(car_outliers_val(), "outlierTest")) ||
-  #       (is.data.frame(car_outliers_val()) &&
-  #          "Bonferroni p" %in% colnames(car_outliers_val()) &&
-  #          (isTRUE(all(is.na(car_outliers_val()[,"Bonferroni p"]))) ||
-  #             isTRUE(all(car_outliers_val()[,"Bonferroni p"] > 0.05))))
-  #     pass_het <- {
-  #       ph <- perf_het_val()
-  #       pval <- NULL
-  #       if (!is.null(ph)) {
-  #         if (is.list(ph) && "p.value" %in% names(ph)) pval <- ph[["p.value"]]
-  #         else if (!is.null(names(ph)) && "p.value" %in% names(ph)) pval <- ph[["p.value"]]
-  #         else if (is.numeric(ph) && length(ph) == 1) pval <- ph
-  #       }
-  #       !is.null(pval) && isTRUE(all(pval > 0.05))
-  #     }
-  #     pass_all <- all(c(pass_linearity, pass_normality, pass_bivnorm, pass_outliers, pass_het))
-  #     if (!pass_all) {
-  #       return(
-  #         div(style = "background-color: #e0e0e0; color: #222; padding: 14px; border-radius: 5px; font-size: 1.1em; margin-top: 10px;",
-  #             strong("This test is not suitable for your data. Assumptions for Pearson are not met.")
-  #         )
-  #       )
-  #     }
-  #   }
-  #   # If not Pearson, or all assumptions passed:
-  #   df <- cor_clr_data()
-  #   cor_df <- correlation::correlation(df, method = input$cor_method, p_adjust = input$cor_p_adjust)
-  #   #as.data.frame(cor_df)
-  # #})
-
 
 
   # Show correlation matrix download if >10 feature
@@ -4640,7 +4619,7 @@ output$cor_matrix_download_ui <- renderUI({
         shinyjs::show("download_hist_before")
         req(lm_data(), input$lm_dep)
         df <- lm_data()
-        ggplot(df, aes_string(input$lm_dep)) +
+        ggplot2::ggplot(df, aes_string(input$lm_dep)) +
           geom_histogram(aes(y = after_stat(density)), color = "black", fill = "#4db6ac", bins = 30) +
           geom_density(color = "#b2182b", size = 1.2, alpha = 0.7, show.legend = FALSE) +
           theme_test() +
@@ -4650,7 +4629,7 @@ output$cor_matrix_download_ui <- renderUI({
       output$lm_hist_after <- renderPlot({
         req(lm_transformed_data(), input$lm_dep)
         df <- lm_transformed_data()
-        ggplot(df, aes_string(input$lm_dep)) +
+        ggplot2::ggplot(df, aes_string(input$lm_dep)) +
           geom_histogram(aes(y = after_stat(density)), color = "black", fill = "#ffb74d", bins = 30) +
           geom_density(color = "#b2182b", size = 1.2, alpha = 0.7, show.legend = FALSE) +
           theme_test() +
@@ -4688,7 +4667,7 @@ output$cor_matrix_download_ui <- renderUI({
         dep_var <- input$lm_dep
         png(file, width = 1200, height = 900, res = 150)
         print(
-          ggplot(df, aes_string(dep_var)) +
+          ggplot2::ggplot(df, aes_string(dep_var)) +
             geom_histogram(aes(y = after_stat(density)), color = "black", fill = "#4db6ac", bins = 30) +
             geom_density(color = "#b2182b", size = 1.2, alpha = 0.7, show.legend = FALSE) +
             theme_test() +
@@ -4706,7 +4685,7 @@ output$cor_matrix_download_ui <- renderUI({
         df <- lm_transformed_data()
         png(file, width = 1200, height = 900, res = 150)
         print(
-          ggplot(df, aes_string(input$lm_dep)) +
+          ggplot2::ggplot(df, aes_string(input$lm_dep)) +
             geom_histogram(aes(y = after_stat(density)), color = "black", fill = "#ffb74d", bins = 30) +
             geom_density(color = "#b2182b", size = 1.2, alpha = 0.7, show.legend = FALSE) +
             theme_test() +
@@ -4737,7 +4716,7 @@ output$cor_matrix_download_ui <- renderUI({
           TRUE ~ "NS"
         )) %>%
         dplyr::filter(!is.na(conf.low), !is.na(conf.high)) %>%
-        ggplot(aes(x = estimate, y = term)) +
+        ggplot2::ggplot(aes(x = estimate, y = term)) +
         geom_vline(xintercept = 0, linetype = "dashed") +
         geom_errorbarh(aes(xmin = conf.low, xmax = conf.high), height = 0.11, size = 0.4, col = "black") +
         geom_point(aes(fill = group), color = "black", shape = 21, size = 2.5, alpha = 1, show.legend = FALSE) +
@@ -4789,7 +4768,7 @@ output$cor_matrix_download_ui <- renderUI({
             TRUE ~ "NS"
           ))%>%
           dplyr::filter(!is.na(estimate), !is.na(conf.low), !is.na(conf.high))
-        p <- ggplot(b, aes(x = estimate, y = term)) +
+        p <- ggplot2::ggplot(b, aes(x = estimate, y = term)) +
           geom_vline(xintercept = 0, linetype = "dashed") +
           geom_errorbarh(aes(xmin = conf.low, xmax = conf.high), height = 0.11, size = 0.4, col = "black") +
           geom_point(aes(fill = group), color = "black", shape = 21, size = 2.5, alpha = 1, show.legend = FALSE) +
@@ -4963,7 +4942,7 @@ lmm_vars <- reactive({
         shinyjs::show("lmm_download_hist_before")
         req(lmm_data(), input$lmm_dep)
         df <- lmm_data()
-        ggplot(df, aes_string(input$lmm_dep)) +
+        ggplot2::ggplot(df, aes_string(input$lmm_dep)) +
           geom_histogram(aes(y = after_stat(density)), color = "black", fill = "#4db6ac", bins = 30) +
           geom_density(color = "#b2182b", size = 1.2, alpha = 0.7, show.legend = FALSE) +
           theme_test() +
@@ -4985,7 +4964,7 @@ lmm_vars <- reactive({
                           "invnorm" = bestNormalize::orderNorm(x)$x.t,
                           "none" = x)
         plot_df <- data.frame(val = trans_x)
-        ggplot(plot_df, aes(val)) +
+        ggplot2::ggplot(plot_df, aes(val)) +
           geom_histogram(aes(y = after_stat(density)), color = "black", fill = "#ffb74d", bins = 30) +
           geom_density(color = "#b2182b", size = 1.2, alpha = 0.7, show.legend = FALSE) +
           theme_test() +
@@ -5001,7 +4980,7 @@ lmm_vars <- reactive({
         df <- lmm_data()
         png(file, width = 1200, height = 900, res = 150)
         print(
-          ggplot(df, aes_string(input$lmm_dep)) +
+          ggplot2::ggplot(df, aes_string(input$lmm_dep)) +
             geom_histogram(aes(y = after_stat(density)), color = "black", fill = "#4db6ac", bins = 30) +
             geom_density(color = "#b2182b", size = 1.2, alpha = 0.7, show.legend = FALSE) +
             theme_test() +
@@ -5025,7 +5004,7 @@ lmm_vars <- reactive({
         plot_df <- data.frame(val = trans_x)
         png(file, width = 1200, height = 900, res = 150)
         print(
-          ggplot(plot_df, aes(val)) +
+          ggplot2::ggplot(plot_df, aes(val)) +
             geom_histogram(aes(y = after_stat(density)), color = "black", fill = "#ffb74d", bins = 30) +
             geom_density(color = "#b2182b", size = 1.2, alpha = 0.7, show.legend = FALSE) +
             theme_test() +
@@ -5335,7 +5314,7 @@ lmm_vars <- reactive({
       # Only print tidy table if model succeeded
       broom.mixed::tidy(model, conf.int = TRUE) %>%
         dplyr::filter(effect == "fixed") %>%
-        filter(!term %in% c("sd__(Intercept)", "sd__Observation")) %>%
+        dplyr::filter(!term %in% c("sd__(Intercept)", "sd__Observation")) %>%
         dplyr::select(-c(effect, group)) %>%
         dplyr::mutate(Sig = dplyr::case_when(
           is.na(p.value) ~ "",
@@ -5470,7 +5449,7 @@ lmm_vars <- reactive({
           req(lmm_model_plot())
           df <- broom.mixed::tidy(lmm_model_plot(), conf.int = TRUE) %>%
             dplyr::filter(effect == "fixed") %>%
-            filter(!term %in% c("sd__(Intercept)", "sd__Observation")) %>%
+            dplyr::filter(!term %in% c("sd__(Intercept)", "sd__Observation")) %>%
             dplyr::select(-c(effect, group)) %>%
             dplyr::mutate(group = dplyr::case_when(
               p.value < 0.05 & estimate > 0 ~ "sig_pos",
@@ -5478,7 +5457,7 @@ lmm_vars <- reactive({
               TRUE ~ "NS"
             )) %>%
             dplyr::filter(term != "(Intercept)")
-          ggplot(df, aes(x = estimate, y = term)) +
+          ggplot2::ggplot(df, aes(x = estimate, y = term)) +
             geom_vline(xintercept = 0, linetype = "dashed") +
             geom_errorbarh(aes(xmin = conf.low, xmax = conf.high), height = 0.11, size = 0.4, col = "black") +
             geom_point(aes(fill = group), color = "black", shape = 21, size = 3, show.legend = FALSE) +
@@ -5516,7 +5495,7 @@ lmm_vars <- reactive({
           req(lmm_model_plot())
           df <- broom.mixed::tidy(lmm_model_plot(), conf.int = TRUE) %>%
             dplyr::filter(effect == "fixed") %>%
-            filter(!term %in% c("sd__(Intercept)", "sd__Observation")) %>%
+            dplyr::filter(!term %in% c("sd__(Intercept)", "sd__Observation")) %>%
             dplyr::select(-c(effect, group)) %>%
             dplyr::mutate(group = dplyr::case_when(
               p.value < 0.05 & estimate > 0 ~ "sig_pos",
@@ -5524,7 +5503,7 @@ lmm_vars <- reactive({
               TRUE ~ "NS"
             )) %>%
             dplyr::filter(term != "(Intercept)")
-          p <- ggplot(df, aes(x = estimate, y = term)) +
+          p <- ggplot2::ggplot(df, aes(x = estimate, y = term)) +
             geom_vline(xintercept = 0, linetype = "dashed") +
             geom_errorbarh(aes(xmin = conf.low, xmax = conf.high), height = 0.11, size = 0.4, col = "black") +
             geom_point(aes(fill = group), color = "black", shape = 21, size = 3, show.legend = FALSE) +
@@ -5762,7 +5741,7 @@ lmm_vars <- reactive({
             )
           ) %>%
           dplyr::filter(!is.na(conf.low), !is.na(conf.high)) %>%
-          filter(term != "(Intercept)")
+          dplyr::filter(term != "(Intercept)")
 
         if (nrow(b) == 0) {
           showNotification(strong("Effect plot could not be generated due to NA estimates or intervals."), 
@@ -5772,7 +5751,7 @@ lmm_vars <- reactive({
 
         xlim_val <- max(abs(c(b$conf.low, b$conf.high)), na.rm = TRUE)
 
-        ggplot(b, aes(x = estimate, y = term)) +
+        ggplot2::ggplot(b, aes(x = estimate, y = term)) +
           geom_vline(xintercept = 0, linetype = "dashed") +
           geom_errorbarh(aes(xmin = conf.low, xmax = conf.high), height = 0.11, size = 0.4, color = "black") +
           geom_point(aes(fill = group), color = "black", shape = 21, size = 2.5, show.legend = FALSE) +
@@ -5848,11 +5827,11 @@ lmm_vars <- reactive({
               TRUE ~ "NS"
             )) %>%
             dplyr::filter(!is.na(conf.low), !is.na(conf.high)) %>%
-            filter(term != "(Intercept)")
+            dplyr::filter(term != "(Intercept)")
 
           xlim_val <- max(abs(c(b$conf.low, b$conf.high)), na.rm = TRUE)
 
-          p <- ggplot(b, aes(x = estimate, y = term)) +
+          p <- ggplot2::ggplot(b, aes(x = estimate, y = term)) +
             geom_vline(xintercept = 0, linetype = "dashed") +
             geom_errorbarh(aes(xmin = conf.low, xmax = conf.high), height = 0.11, size = 0.4, color = "black") +
             geom_point(aes(fill = group), color = "black", shape = 21, size = 2.5, show.legend = FALSE) +
@@ -6079,9 +6058,9 @@ lmm_vars <- reactive({
               TRUE ~ "NS"
             )) %>%
             dplyr::filter(!is.na(conf.low), !is.na(conf.high)) %>%
-            filter(term != "(Intercept)")
+            dplyr::filter(term != "(Intercept)")
           
-          ggplot(b, aes(x = estimate, y = term)) +
+          ggplot2::ggplot(b, aes(x = estimate, y = term)) +
             geom_vline(xintercept = 0, linetype = "dashed") +
             geom_errorbarh(aes(xmin = conf.low, xmax = conf.high), height = 0.11, size = 0.4, color = "black") +
             geom_point(aes(fill = group), color = "black", shape = 21, size = 2.5, alpha = 1, show.legend = FALSE) +
@@ -6123,9 +6102,9 @@ lmm_vars <- reactive({
               TRUE ~ "NS"
             )) %>%
             dplyr::filter(!is.na(conf.low), !is.na(conf.high)) %>%
-            filter(term != "(Intercept)")
+            dplyr::filter(term != "(Intercept)")
 
-          p <- ggplot(b, aes(x = estimate, y = term)) +
+          p <- ggplot2::ggplot(b, aes(x = estimate, y = term)) +
             geom_vline(xintercept = 0, linetype = "dashed") +
             geom_errorbarh(aes(xmin = conf.low, xmax = conf.high), height = 0.11, size = 0.4, color = "black") +
             geom_point(aes(fill = group), color = "black", shape = 21, size = 2.5, alpha = 1, show.legend = FALSE) +
