@@ -2818,7 +2818,6 @@ output$statistical_significance_square <- renderUI({
         dplyr::select(.data[[input$cat1]], .data[[input$cat2]]) %>%
         tidyr::drop_na() %>%
         table()
-      
       # Special check for one-group-per-variable (degenerate case)
       if (any(dim(tab) < 2)) {
         shiny::showModal(modalDialog(
@@ -2875,13 +2874,38 @@ output$statistical_significance_square <- renderUI({
             warn_msg <<- NULL
           }
           
-          knitr::kable(rstatix::chisq_test(tab), align = "c", "simple")
+          out <- tryCatch({
+            capture.output(knitr::kable(rstatix::chisq_test(tab), align = "c", format = "simple"))
+          }, error = function(e) NULL)
+          
+          if (!is.null(out)) cat(out, sep = "\n")
+          
         } else {
-          knitr::kable(rstatix::fisher_test(tab, detailed = T), align = "c", "simple")
+          result <- tryCatch({
+            rstatix::fisher_test(tab, detailed = TRUE)
+          }, error = function(e) {
+            # Show notification, but do not print error to UI
+            if (grepl("integer overflow", e$message, ignore.case = TRUE)) {
+              showNotification(strong("Fisher's Exact Test failed due to large table. Use Chi-squared test instead."), type = "error", duration = 6)
+            } else {
+              showNotification(paste("Error:", e$message), type = "error")
+            }
+            return(NULL) # prevent output
+          })
+          
+          if (!is.null(result)) {
+            out <- tryCatch({
+              capture.output(knitr::kable(result, align = "c", format = "simple"))
+            }, error = function(e) NULL)
+            
+            if (!is.null(out)) cat(out, sep = "\n")
+          } else {
+            return(invisible(NULL)) # this line ensures red errors are not shown if result is NULL
+          }
         }
       }, error = function(e) {
-        showNotification(paste("Error:", e$message), type = "error")
-        cat("Test could not be run. Check your data and selections.")
+        # Also suppress any red error in UI here
+        return(invisible(NULL))
       })
     })
 
@@ -4403,7 +4427,15 @@ output$cor_matrix_download_ui <- renderUI({
     # ---- LM Data Loader ----
     lm_data <- reactive({
       req(input$lm_file)
-      readr::read_csv(input$lm_file$datapath, show_col_types = F)
+      readr::read_csv(input$lm_file$datapath, show_col_types = F) %>%
+        dplyr::select(
+          -dplyr::contains("infant_id", ignore.case = TRUE),
+          -dplyr::contains("infantid", ignore.case = TRUE),
+          -dplyr::contains("sample_id", ignore.case = TRUE),
+          -dplyr::contains("sampleid", ignore.case = TRUE),
+          -dplyr::contains("sample", ignore.case = TRUE),
+          -dplyr::contains("accession", ignore.case = TRUE)
+        )
     })
 
     # ---- LM: UI for Dependent Variable ----
@@ -5535,7 +5567,15 @@ lmm_vars <- reactive({
 
       log_data <- reactive({
         req(input$log_file)
-        readr::read_csv(input$log_file$datapath, show_col_types = F)
+        readr::read_csv(input$log_file$datapath, show_col_types = F) %>%
+          dplyr::select(
+            -dplyr::contains("infant_id", ignore.case = TRUE),
+            -dplyr::contains("infantid", ignore.case = TRUE),
+            -dplyr::contains("sample_id", ignore.case = TRUE),
+            -dplyr::contains("sampleid", ignore.case = TRUE),
+            -dplyr::contains("sample", ignore.case = TRUE),
+            -dplyr::contains("accession", ignore.case = TRUE)
+          )
       })
 
 
@@ -5864,7 +5904,15 @@ lmm_vars <- reactive({
       # ---- Negative Binomial: Reactive Data Upload ----
       nb_data <- reactive({
         req(input$nb_file)
-        readr::read_csv(input$nb_file$datapath, show_col_types = F)
+        readr::read_csv(input$nb_file$datapath, show_col_types = F) %>%
+          dplyr::select(
+            -dplyr::contains("infant_id", ignore.case = TRUE),
+            -dplyr::contains("infantid", ignore.case = TRUE),
+            -dplyr::contains("sample_id", ignore.case = TRUE),
+            -dplyr::contains("sampleid", ignore.case = TRUE),
+            -dplyr::contains("sample", ignore.case = TRUE),
+            -dplyr::contains("accession", ignore.case = TRUE)
+          )
       })
 
       # ---- Negative Binomial: UI for Dependent Variable ----
@@ -6162,7 +6210,15 @@ lmm_vars <- reactive({
       # ---- Multinomial Regression: Reactive Data ----
       multi_data <- reactive({
         req(input$multi_file)
-        readr::read_csv(input$multi_file$datapath, show_col_types = F)
+        readr::read_csv(input$multi_file$datapath, show_col_types = F) %>%
+          dplyr::select(
+            -dplyr::contains("infant_id", ignore.case = TRUE),
+            -dplyr::contains("infantid", ignore.case = TRUE),
+            -dplyr::contains("sample_id", ignore.case = TRUE),
+            -dplyr::contains("sampleid", ignore.case = TRUE),
+            -dplyr::contains("sample", ignore.case = TRUE),
+            -dplyr::contains("accession", ignore.case = TRUE)
+          )
       })
 
 
