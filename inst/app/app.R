@@ -2677,7 +2677,15 @@ output$statistical_significance_square <- renderUI({
   ## Read the data and update timepoint dropdown
   fisher_data <- reactive({
     req(input$file_fisher)
-    readr::read_csv(input$file_fisher$datapath, show_col_types = F)
+    readr::read_csv(input$file_fisher$datapath, show_col_types = F) %>%
+      dplyr::select(
+        -dplyr::contains("infant_id", ignore.case = TRUE),
+        -dplyr::contains("infantid", ignore.case = TRUE),
+        -dplyr::contains("sample_id", ignore.case = TRUE),
+        -dplyr::contains("sampleid", ignore.case = TRUE),
+        -dplyr::contains("sample", ignore.case = TRUE),
+        -dplyr::contains("accession", ignore.case = TRUE)
+      )
   })
 
   run_fisher_clicked <- reactiveVal(FALSE)
