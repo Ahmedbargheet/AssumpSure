@@ -84,7 +84,7 @@ AssumpSure::launch_app()
 
 ## 💻 Use Online
 
-You can use **AssumpSure** without installing it (performance may be slower online):  
+You can use **AssumpSure** without installing it (performance is slower online):  
 https://ahmed-bargheet.shinyapps.io/AssumpSure/
 
 ---
