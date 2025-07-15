@@ -56,6 +56,12 @@ With **AssumpSure**, you can:
 
 ## 📁 Installation
 
+### CRAN
+```r
+install.packages("AssumpSure")
+```
+
+### GitHub
 ```r
 # Install devtools if not already installed
 install.packages("devtools")
