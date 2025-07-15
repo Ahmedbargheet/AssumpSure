@@ -1,6 +1,6 @@
 # AssumpSure
 
-![License: GPL-3](https://img.shields.io/badge/license-GPL--3-blue.svg) ![Repo Status](https://img.shields.io/badge/status-active-brightgreen.svg)
+![License: GPL-3](https://img.shields.io/badge/license-GPL--3-blue.svg) ![Repo Status](https://img.shields.io/badge/status-active-brightgreen.svg) [![](https://www.r-pkg.org/badges/version/AssumpSure?color=orange)](https://cran.r-project.org/package=AssumpSure) "[![](http://cranlogs.r-pkg.org/badges/grand-total/AssumpSure?color=blue)](https://cran.r-project.org/package=AssumpSure)" "[![Project Status: Active - The project has reached a stable, usable state and is being actively developed.](https://www.repostatus.org/badges/latest/active.svg)](https://www.repostatus.org/#active)"
 
 ## 🎯 Purpose
 <img align="right" src="inst/app/www/logo.png" width="200" style="margin-top:40px;">
