@@ -1,6 +1,6 @@
 # AssumpSure
 
-[![](https://www.r-pkg.org/badges/version/AssumpSure?color=orange)](https://cran.r-project.org/package=AssumpSure) ![License: GPL-3](https://img.shields.io/badge/license-GPL--3-blue.svg)  [![](http://cranlogs.r-pkg.org/badges/grand-total/AssumpSure?color=blue)](https://cran.r-project.org/package=AssumpSure) [![Project Status: Active - The project has reached a stable, usable state and is being actively developed.](https://www.repostatus.org/badges/latest/active.svg)](https://www.repostatus.org/#active)
+[![](https://www.r-pkg.org/badges/version/AssumpSure?color=orange)](https://cran.r-project.org/package=AssumpSure) ![License: GPL-3](https://img.shields.io/badge/license-GPL--3-blue.svg) [![Project Status: Active - The project has reached a stable, usable state and is being actively developed.](https://www.repostatus.org/badges/latest/active.svg)](https://www.repostatus.org/#active)
 
 
 ## 🎯 Purpose
@@ -56,7 +56,7 @@ With **AssumpSure**, you can:
 ---
 
 ## 📁 Installation
-Important: Please use R 4.2 or newer. For now, we recommend installing the latest GitHub version for all features.
+**Important:** Please use R 4.2 or newer. For now, we recommend installing the GitHub version for all features.
 
 ### CRAN
 ```r
