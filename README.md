@@ -56,7 +56,8 @@ With **AssumpSure**, you can:
 ---
 
 ## 📁 Installation
-**Important:** Please use R 4.2 or newer. For now, we recommend installing the GitHub version for all features.
+**Important:** Please use R 4.2 or newer. For now, we recommend installing the GitHub version for all features. 
+A more robust version with new features is coming soon.
 
 ### CRAN
 ```r
