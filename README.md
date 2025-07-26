@@ -71,7 +71,7 @@ install.packages("devtools")
 library(devtools)
 
 # Install AssumpSure package
-devtools::install_github("https://github.com/Ahmedbargheet/AssumpSure")
+devtools::install_github("Ahmedbargheet/AssumpSure")
 ```
 
 ---
@@ -114,4 +114,4 @@ Bargheet, Ahmed. "AssumpSure: A User-Friendly R Shiny Package for Automated Vali
 
 ## 📚 Need Help?
 
-For feedback or questions, feel free to contact us at ahmed.bargheet@yahoo.com
+For feedback or questions, feel free to contact me at ahmed.bargheet@yahoo.com
