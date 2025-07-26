@@ -51,7 +51,7 @@ With **AssumpSure**, you can:
 - Chi-square and Fisher’s exact tests
 - Correlation analyses (Pearson, Spearman, Kendall, and Biweight midcorrelation)
 - Linear and linear mixed-effects models
-- Logistic, multinomial and negative binomial regression
+- Logistic, multinomial, Poisson and negative binomial regression
 
 ---
 
