@@ -480,8 +480,10 @@ function corScreenshotWithoutScatterBtn() {
                               tabPanel("Dependent Variable Normality",
                                        fluidRow(column(6,
                                                 plotOutput("lm_hist_before"),
+                                                uiOutput("lm_shapiro_square_before"),
                                                 downloadButton("download_hist_before", "Download Before")),
-                                                column(6, uiOutput("lm_hist_after_ui")))),
+                                                column(6, uiOutput("lm_hist_after_ui"),
+                                                       uiOutput("shapiro_square_after")))),
                               tabPanel("Test Result", uiOutput("lm_result")),
                               tabPanel("Assumptions",
                                        uiOutput("note_title_lm"),
@@ -524,6 +526,7 @@ function corScreenshotWithoutScatterBtn() {
                                        fluidRow(
                                          column(6,
                                                 plotOutput("lmm_hist_before"),
+                                                uiOutput("lmm_shapiro_square_before"),
                                                 downloadButton("lmm_download_hist_before", "Download Before")),
                                          column(6, uiOutput("lmm_hist_after_ui"
                                                 )))),
@@ -5949,6 +5952,18 @@ output$cor_matrix_download_ui <- renderUI({
           labs(title = "Before Transformation", x = input$lm_dep, y = "Density") +
           theme(plot.title = element_text(size = 17))
       })
+      
+      # ---- Shapiro square BEFORE transformation ----
+      output$lm_shapiro_square_before <- renderUI({
+        req(lm_data(), input$lm_dep)
+        df <- lm_data()
+        y <- df[[input$lm_dep]]
+        # Only apply to numeric, sample size 3-5000
+        if (!is.numeric(y) || length(y) < 3 || length(y) > 5000) return(NULL)
+        res <- shapiro.test(y)
+        shapiro_square(res$p.value, location = "Before")
+      })
+      
 
       # LM histogram after transformation
       output$lm_hist_after_ui <- renderUI({
@@ -5957,6 +5972,7 @@ output$cor_matrix_download_ui <- renderUI({
         if (input$lm_transform != "none") {
           tagList(
             plotOutput("lm_hist_after"),
+            uiOutput("lm_shapiro_square_after"),
             downloadButton("download_hist_after", "Download After")
           )
         }
@@ -5978,6 +5994,18 @@ output$cor_matrix_download_ui <- renderUI({
           theme(plot.title = element_text(size = 17))
       })
     })
+
+    # ---- Shapiro square AFTER transformation ----
+    output$lm_shapiro_square_after <- renderUI({
+      req(lm_transformed_data(), input$lm_dep)
+      df <- lm_transformed_data()
+      y <- df[[input$lm_dep]]
+      if (!is.numeric(y) || length(y) < 3 || length(y) > 5000) return(NULL)
+      res <- shapiro.test(y)
+      shapiro_square(res$p.value, location = "After")
+    })
+
+
 
 
     # # downlaod assumption as PDF
@@ -6023,6 +6051,30 @@ output$cor_matrix_download_ui <- renderUI({
       }
     )
     
+    
+    
+    shapiro_square <- function(pval, location = "") {
+      if (is.na(pval)) return(NULL)
+      if (pval > 0.10) {
+        color <- "green"
+        msg <- paste0("✓ Normality (Shapiro-Wilk test,; p = ", format.pval(pval, digits = 3), ") ")
+      } else if (pval > 0.05 && pval <= 0.10) {
+        color <- "#ffc107"
+        msg <- paste0("! Borderline normality (Shapiro-Wilk test; p = ", format.pval(pval, digits = 3), ") ", location)
+      } else {
+        color <- "#B20D00"
+        msg <- paste0("✗ Not normal (Shapiro-Wilk test; p = ", format.pval(pval, digits = 3), ") ")
+      }
+      div(
+        style = paste0("background-color:", color, "; color: white; padding: 10px; border-radius: 7px; font-size: 1em; margin-top: 8px; margin-bottom: 4px; text-align: center;"),
+        strong(msg)
+      )
+    }
+    
+    
+    
+    
+    
 
     # Download handler for AFTER transformation
     output$download_hist_after <- downloadHandler(
@@ -6045,6 +6097,8 @@ output$cor_matrix_download_ui <- renderUI({
         ggsave(file, plot = p, width = 8, height = 6, dpi = 600)
       }
     )
+    
+    
     
 
     # Render forest plot
@@ -6325,6 +6379,57 @@ lmm_vars <- reactive({
         return()
       }
       updateTabsetPanel(session, inputId = "lmm_tabs", selected = "Dependent Variable Normality")
+      
+      
+      
+      lmm_transformed_data <- reactive({
+        req(lmm_data(), input$lmm_dep)
+        df <- lmm_data()
+        y <- df[[input$lmm_dep]]
+        method <- input$lmm_transform
+        
+        if (method == "none") {
+          df[[input$lmm_dep]] <- y
+        } else if (method == "log") {
+          if (any(y <= 0, na.rm = TRUE)) {
+            showNotification(strong("Log transform requires all values > 0."), type = "error")
+            return(NULL)
+          }
+          df[[input$lmm_dep]] <- log(y)
+        } else if (method == "yeojohnson") {
+          df[[input$lmm_dep]] <- bestNormalize::yeojohnson(y)$x.t
+        } else if (method == "boxcox") {
+          if (any(y <= 0, na.rm = TRUE)) {
+            showNotification(strong("Box-Cox transform requires all values > 0."), type = "error")
+            return(NULL)
+          }
+          df[[input$lmm_dep]] <- bestNormalize::boxcox(y)$x.t
+        } else if (method == "invnorm") {
+          df[[input$lmm_dep]] <- bestNormalize::orderNorm(y)$x.t
+        }
+        df
+      })
+      
+      
+      
+      output$lmm_shapiro_square_before <- renderUI({
+        req(lmm_data(), input$lmm_dep)
+        df <- lmm_data()
+        y <- df[[input$lmm_dep]]
+        if (!is.numeric(y) || length(y) < 3 || length(y) > 5000) return(NULL)
+        res <- shapiro.test(y)
+        shapiro_square(res$p.value, location = "Before")
+      })
+      
+      output$lmm_shapiro_square_after <- renderUI({
+        req(lmm_transformed_data(), input$lmm_dep)
+        df <- lmm_transformed_data()
+        y <- df[[input$lmm_dep]]
+        if (!is.numeric(y) || length(y) < 3 || length(y) > 5000) return(NULL)
+        res <- shapiro.test(y)
+        shapiro_square(res$p.value, location = "After")
+      })
+      
 
       # Histogram BEFORE transformation
       output$lmm_hist_before <- renderPlot({
@@ -6345,11 +6450,16 @@ lmm_vars <- reactive({
 
       shinyjs::hide("lmm_download_hist_before")
       
+      
+      
+      
+      
       # Histogram AFTER transformation
       output$lmm_hist_after_ui <- renderUI({
         if (!is.null(input$lmm_transform) && input$lmm_transform != "none") {
           tagList(
             plotOutput("lmm_hist_after"),
+            uiOutput("lmm_shapiro_square_after"),
             downloadButton("lmm_download_hist_after", "Download After")
           )
         }
@@ -6440,6 +6550,16 @@ lmm_vars <- reactive({
         shinyjs::enable("lmm_download_hist_after")
       }
     })
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
 
 
     # ---- Build LMM Formula String ----
