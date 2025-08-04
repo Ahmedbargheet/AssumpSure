@@ -3507,7 +3507,8 @@ output$boxplot_ui <- renderUI({
         -dplyr::contains("sample_id", ignore.case = TRUE),
         -dplyr::contains("sampleid", ignore.case = TRUE),
         -dplyr::contains("sample", ignore.case = TRUE),
-        -dplyr::contains("accession", ignore.case = TRUE)
+        -dplyr::contains("accession", ignore.case = TRUE),
+        -dplyr::contains("name", ignore.case = TRUE)
       )
     for (nm in names(df)) {
       if (nm != "timepoint") {
@@ -5658,7 +5659,8 @@ output$cor_matrix_download_ui <- renderUI({
           -dplyr::contains("sample_id", ignore.case = TRUE),
           -dplyr::contains("sampleid", ignore.case = TRUE),
           -dplyr::contains("sample", ignore.case = TRUE),
-          -dplyr::contains("accession", ignore.case = TRUE)
+          -dplyr::contains("accession", ignore.case = TRUE),
+          -dplyr::contains("name", ignore.case = TRUE)
         )
     })
 
@@ -6986,7 +6988,8 @@ lmm_vars <- reactive({
             -dplyr::contains("sample_id", ignore.case = TRUE),
             -dplyr::contains("sampleid", ignore.case = TRUE),
             -dplyr::contains("sample", ignore.case = TRUE),
-            -dplyr::contains("accession", ignore.case = TRUE)
+            -dplyr::contains("accession", ignore.case = TRUE),
+            -dplyr::contains("name", ignore.case = TRUE)
           )
       })
 
@@ -7431,7 +7434,8 @@ lmm_vars <- reactive({
             -dplyr::contains("sample_id", ignore.case = TRUE),
             -dplyr::contains("sampleid", ignore.case = TRUE),
             -dplyr::contains("sample", ignore.case = TRUE),
-            -dplyr::contains("accession", ignore.case = TRUE)
+            -dplyr::contains("accession", ignore.case = TRUE),
+            -dplyr::contains("name", ignore.case = TRUE)
           )
       })
 
@@ -7861,7 +7865,8 @@ lmm_vars <- reactive({
             -dplyr::contains("sample_id", ignore.case = TRUE),
             -dplyr::contains("sampleid", ignore.case = TRUE),
             -dplyr::contains("sample", ignore.case = TRUE),
-            -dplyr::contains("accession", ignore.case = TRUE)
+            -dplyr::contains("accession", ignore.case = TRUE),
+            -dplyr::contains("name", ignore.case = TRUE)
           )
       })
 
@@ -8097,7 +8102,8 @@ lmm_vars <- reactive({
             -dplyr::contains("sample_id", ignore.case = TRUE),
             -dplyr::contains("sampleid", ignore.case = TRUE),
             -dplyr::contains("sample", ignore.case = TRUE),
-            -dplyr::contains("accession", ignore.case = TRUE)
+            -dplyr::contains("accession", ignore.case = TRUE),
+            -dplyr::contains("name", ignore.case = TRUE)
           )
       })
       
@@ -8513,7 +8519,8 @@ lmm_vars <- reactive({
             -dplyr::contains("sample_id", ignore.case = TRUE),
             -dplyr::contains("sampleid", ignore.case = TRUE),
             -dplyr::contains("sample", ignore.case = TRUE),
-            -dplyr::contains("accession", ignore.case = TRUE)
+            -dplyr::contains("accession", ignore.case = TRUE),
+            -dplyr::contains("name", ignore.case = TRUE)
           )
       })
       
