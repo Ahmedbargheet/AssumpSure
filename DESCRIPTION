@@ -37,7 +37,6 @@ Imports:
     brglm2,
     glmmTMB,
     effectsize,
-    BiocGenerics,
     coin
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)

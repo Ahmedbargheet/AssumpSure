@@ -5353,7 +5353,7 @@ output$cor_matrix_download_ui <- renderUI({
     
     # Calculate p-values matrix
     corp <- correlation::correlation(df, method = input$cor_method, p_adjust = input$cor_p_adjust, 
-                                     redundant = T) %>% BiocGenerics::as.data.frame() %>% 
+                                     redundant = T) %>% as.data.frame() %>% 
       dplyr::select(Parameter1, Parameter2, p) %>% 
       tidyr::pivot_wider(names_from = Parameter2, values_from = p) %>% 
       tibble::column_to_rownames("Parameter1") %>% base::as.matrix()
@@ -5426,7 +5426,7 @@ output$cor_matrix_download_ui <- renderUI({
         
         corp <- correlation::correlation(df, method = input$cor_method, p_adjust = input$cor_p_adjust, 
                                          redundant = TRUE) %>% 
-          BiocGenerics::as.data.frame() %>% 
+          as.data.frame() %>% 
           dplyr::select(Parameter1, Parameter2, p) %>% 
           tidyr::pivot_wider(names_from = Parameter2, values_from = p) %>% 
           tibble::column_to_rownames("Parameter1") %>% 
