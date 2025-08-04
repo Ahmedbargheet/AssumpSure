@@ -1,6 +1,7 @@
 library(shiny)
 library(shinyjs)
 library(bslib)
+library(brglm2)
 source("https://gist.githubusercontent.com/benmarwick/2a1bb0133ff568cbe28d/raw/fb53bd97121f7f9ce947837ef1a4c65a73bffb3f/geom_flat_violin.R")
 
 # ----- UI -----
@@ -56,6 +57,12 @@ ui <- navbarPage(
           border-color: black !important;
           color: black !important;
         }
+        
+        /* Override just for Welch button */
+        .btn-warning.welch-white {
+        color: white !important;
+        }
+        
         .btn-info {
           background-color: #E3A599 !important;
           border-color: black !important;
@@ -151,20 +158,20 @@ ui <- navbarPage(
     ),
     tags$head(
       tags$script(HTML("
-      Shiny.addCustomMessageHandler('reinit-tooltips', function(message) {
+    Shiny.addCustomMessageHandler('reinit-tooltips', function(message) {
+      setTimeout(function() {
+        // Remove existing tooltips
+        $('[data-bs-toggle=\"tooltip\"]').tooltip('dispose');
+        // Re-initialize tooltips
         var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle=\"tooltip\"]'));
         tooltipTriggerList.map(function(el) {
           return new bootstrap.Tooltip(el);
         });
-      });
-      document.addEventListener('DOMContentLoaded', function () {
-        var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle=\"tooltip\"]'));
-        tooltipTriggerList.map(function(el) {
-          return new bootstrap.Tooltip(el);
-        });
-      });
-    "))
-    ),
+      }, 200);
+    });
+  "))
+    )
+    ,
     tags$head(
       tags$style(HTML("
       /* Custom Tab Colors */
@@ -183,7 +190,7 @@ ui <- navbarPage(
         color: black !important;
         border-color: black !important;
       }
-      .nav-tabs > li > a[data-value='Effect Plot'] {
+      .nav-tabs > li > a[data-value='Forest Plot'] {
         background-color: #E3A599 !important;
         color: black !important;
         border-color: black !important;
@@ -307,7 +314,7 @@ function corScreenshotWithoutScatterBtn() {
           div(
             style = "background: linear-gradient(to right, #eaf4f9, #f5fbff); padding: 20px; border-radius: 15px;",
             h4(icon("info-circle", style = "margin-right: 8px;"), "Why AssumpSure?", style = "font-weight: 600; color: #2c3e50; display: inline-block;"),
-            p("Many researchers misuse statistical tests by overlooking or misinterpreting key assumptions, which can lead to invalid conclusions. AssumpSure guides users through assumption checks to ensure analyses are statistically sound, transparent, and ready for publication.", style = "color: #444; margin-top: 10px;
+            p("Many researchers misuse statistical tests by overlooking or misinterpreting key assumptions, which can lead to invalid conclusions.", strong("AssumpSure"), "guides users through assumption checks to ensure analyses are statistically sound, transparent, and ready for publication.", style = "color: #444; margin-top: 10px;
               font-size: 17px;")
           ),
           hr(style = "margin: 30px 0;"),
@@ -397,13 +404,17 @@ function corScreenshotWithoutScatterBtn() {
                                 uiOutput("assumption_content")),
                            ),
                    tabPanel("Test Results",
+                            uiOutput("welch_result"),
+                            uiOutput("welch_anova_result"),
                             uiOutput("test_result_with_square"),
+                            uiOutput("welch_boxplot_ui"),
                             uiOutput("posthoc_ui"),
                             uiOutput("posthoc_result_ui"),
                             br(),
-                            actionButton("plot_boxplot", "Plot Boxplot", class = "btn-plot"),
-                            plotOutput("boxplot"),
-                            downloadButton("download_boxplot", "Download Boxplot")
+                            conditionalPanel(
+                              condition = "input.test_type != 'welch_test' && input.test_type != 'welch_anova'",
+                              uiOutput("boxplot_ui")
+                            )
                    )
                  )
                )
@@ -430,13 +441,13 @@ function corScreenshotWithoutScatterBtn() {
                  actionButton("plot_fisher", "Plot", class = "btn-primary")
                ),
                mainPanel(
-                 verbatimTextOutput("fisher_chisq_result"),
+                 uiOutput("fisher_chisq_result"),
                  uiOutput("fisher_chisq_square"),
                  br(),
                  uiOutput("posthoc_method_ui"),
-                 verbatimTextOutput("posthoc_result_fisher"),
-                 plotOutput("fisher_plot"),
-                 downloadButton("download_fisher_plot", "Download Plot", ),
+                 uiOutput("posthoc_result_fisher"),
+                 uiOutput("dynamic_fisher_plot"),
+                 uiOutput("dynamic_download_fisher"),
                  uiOutput("chi_fisher_warning")
                )
              )
@@ -453,24 +464,7 @@ function corScreenshotWithoutScatterBtn() {
                             uiOutput("lm_dep_ui"),
                             uiOutput("lm_indep_ui"),
                             uiOutput("lm_interact_ui"),
-                            selectInput("lm_transform",
-                                        tagList(
-                                          "Transform dependent variable (optional):",
-                                          tags$span(
-                                            icon("info-circle", class = "fa-solid"),
-                                            `data-bs-toggle` = "tooltip",
-                                            `data-bs-placement` = "right",
-                                            title = "Tip: If the dependent variable is highly skewed or not normally distributed, please apply a transformation before running the test. Use Log or Box-Cox for values > 0. Use Yeo-Johnson or Inverse Normal for variables with zeros or negatives. Always inspect the histogram before and after transformation."
-                                          )),
-                                        choices = c(
-                                          "None" = "none",
-                                          "Log" = "log",
-                                          "Yeo-Johnson" = "yeojohnson",
-                                          "Box-Cox" = "boxcox",
-                                          "Inverse Normal" = "invnorm"
-                                        ),
-                                        selected = "none"
-                            ),
+                            uiOutput("lm_transform_ui"),
                             actionButton("lm_check_norm", "Check Dependent Variable Normality",
                                          class = "btn-warning"),
                             tags$div(style = "margin-top: 5px;"),
@@ -478,7 +472,7 @@ function corScreenshotWithoutScatterBtn() {
                             tags$div(style = "margin-top: 5px;"),
                             actionButton("lm_check", "Check Assumptions", class = "btn-primary"),
                             tags$div(style = "margin-top: 5px;"),
-                            actionButton("lm_plot", "Plot Effects", class = "btn-info")
+                            actionButton("lm_plot", "Plot Forest", class = "btn-info")
                           ),
                           mainPanel(
                             tabsetPanel(
@@ -487,21 +481,17 @@ function corScreenshotWithoutScatterBtn() {
                                        fluidRow(column(6,
                                                 plotOutput("lm_hist_before"),
                                                 downloadButton("download_hist_before", "Download Before")),
-                                                column(6,
-                                                       conditionalPanel(
-                                                         condition = "input.lm_transform != 'none'",
-                                                         plotOutput("lm_hist_after"),
-                                                         downloadButton("download_hist_after", "Download After")
-                                                       )))),
-                              tabPanel("Test Result", verbatimTextOutput("lm_result")),
+                                                column(6, uiOutput("lm_hist_after_ui")))),
+                              tabPanel("Test Result", uiOutput("lm_result")),
                               tabPanel("Assumptions",
+                                       uiOutput("note_title_lm"),
                                        plotOutput("lm_assump", height = "700px"),
                                        br(),
                                        downloadButton("lm_download_assump", "Download Assumption Plot")),
-                              tabPanel("Effect Plot",
+                              tabPanel("Forest Plot",
                                        plotOutput("lm_effect", height = "550px", width = "600px"),
                                        br(),
-                                       downloadButton("lm_download_effect", "Download Effect Plot"))
+                                       downloadButton("lm_download_effect", "Download Forest Plot"))
                             )
                           )
                         )
@@ -516,45 +506,8 @@ function corScreenshotWithoutScatterBtn() {
                             uiOutput("lmm_dep_ui"),
                             uiOutput("lmm_indep_ui"),
                             uiOutput("lmm_interact_ui"),
-                            selectizeInput(
-                              "lmm_re",
-                              label = tagList(
-                                "Select random effect grouping variable(s):",
-                                tags$span(
-                                  icon("info-circle", class = "fa-solid"),
-                                  `data-bs-toggle` = "tooltip",
-                                  `data-bs-placement` = "right",
-                                  title = "How to choose random effects: Use a random effect for hierarchical or grouped data (e.g., patient ID). If a grouping variable has many levels (usually more than 5), treat it as a random effect. With fewer levels, it is safer to include them as fixed effects (an independent variable). For nested data structures (e.g., students within classes within schools), include all relevant grouping variables as random effects to account for within-group correlations. Always ensure your choice reflects the study design and model assumptions.",
-                                  style = "margin-left: 8px; color: #2c3e50; font-size:16px; cursor: pointer;"
-                                )
-                              ),
-                              choices = c("Select variable" = ""),
-                              selected = "",
-                              multiple = TRUE,
-                              options = list(placeholder = 'Select variable')
-                            ),
-                            tags$div(
-                              style = "display: flex; align-items: center;",
-                              tags$label("Transform dependent variable (optional):", `for` = "lmm_transform"),
-                              tags$span(
-                                icon("info-circle", class = "fa-solid"),
-                                `data-bs-toggle` = "tooltip",
-                                `data-bs-placement` = "right",
-                                title = "Tip: If the dependent variable is highly skewed or not normally distributed, please apply a transformation before running the test. Use Log or Box-Cox for values > 0. Use Yeo-Johnson or Inverse Normal for variables with zeros or negatives. Always inspect the histogram before and after transformation.",
-                                style = "margin-left: 8px; color: #2c3e50; font-size:16px; cursor: pointer;"
-                              )),
-                            selectInput(
-                              "lmm_transform",
-                              label = NULL,
-                              choices = c(
-                                "None" = "none",
-                                "Log" = "log",
-                                "Yeo-Johnson" = "yeojohnson",
-                                "Box-Cox" = "boxcox",
-                                "Inverse Normal" = "invnorm"
-                              ),
-                              selected = "none"
-                            ),
+                            uiOutput("lmm_re_ui"),
+                            uiOutput("lmm_transform_ui"),
                             actionButton("lmm_check_norm", "Check Dependent Variable Normality",
                                          class = "btn-warning"),
                             tags$div(style = "margin-top: 5px;"),
@@ -562,7 +515,7 @@ function corScreenshotWithoutScatterBtn() {
                             tags$div(style = "margin-top: 5px;"),
                             actionButton("lmm_check", "Check Assumptions", class = "btn-primary"),
                             tags$div(style = "margin-top: 5px;"),
-                            actionButton("lmm_plot", "Plot Effects", class = "btn-info")
+                            actionButton("lmm_plot", "Plot Forest", class = "btn-info")
                           ),
                           mainPanel(
                             tabsetPanel(
@@ -572,17 +525,14 @@ function corScreenshotWithoutScatterBtn() {
                                          column(6,
                                                 plotOutput("lmm_hist_before"),
                                                 downloadButton("lmm_download_hist_before", "Download Before")),
-                                         column(6,
-                                                conditionalPanel(
-                                                  condition = "input.lmm_transform != 'none'",
-                                                  plotOutput("lmm_hist_after"),
-                                                  downloadButton("lmm_download_hist_after", "Download After")
+                                         column(6, uiOutput("lmm_hist_after_ui"
                                                 )))),
                               tabPanel("Test Result", 
                                        uiOutput("lmm_warning_msg"),
                                        uiOutput("lmm_id_warning_msg"),
-                                       verbatimTextOutput("lmm_result")),
+                                       uiOutput("lmm_result")),
                               tabPanel("Assumptions",
+                                       uiOutput("note_title_lmm"),
                                        uiOutput("lmm_id_warning_msg_assump"),
                                        plotOutput("lmm_assump", height = "700px"),
                                        br(),
@@ -590,7 +540,7 @@ function corScreenshotWithoutScatterBtn() {
                                        br(),
                                        downloadButton("lmm_download_assump", "Download Assumption Plot")
                               ),
-                              tabPanel("Effect Plot",
+                              tabPanel("Forest Plot",
                                        uiOutput("lmm_id_warning_msg_effect"),
                                        plotOutput("lmm_effect", height = "550px", width = "600px"),
                                        br(),
@@ -613,20 +563,21 @@ function corScreenshotWithoutScatterBtn() {
                             tags$div(style = "margin-top: 5px;"),
                             actionButton("log_check", "Check Assumptions", class = "btn-primary"),
                             tags$div(style = "margin-top: 5px;"),
-                            actionButton("log_plot", "Plot Effects", class = "btn-info")
+                            actionButton("log_plot", "Plot Forest", class = "btn-info")
                           ),
                           mainPanel(
                             tabsetPanel(
                               id = "log_tabs",
-                              tabPanel("Test Result", verbatimTextOutput("log_result")),
+                              tabPanel("Test Result", uiOutput("log_result")),
                               tabPanel("Assumptions",
+                                       uiOutput("note_title_log"),
                                        plotOutput("log_assump", height = "700px"),
                                        br(),
                                        downloadButton("log_download_assump", "Download Assumption Plot")),
-                              tabPanel("Effect Plot",
+                              tabPanel("Forest Plot",
                                        plotOutput("log_effect", height = "550px", width = "600px"),
                                        br(),
-                                       downloadButton("log_download_effect", "Download Effect Plot"))
+                                       downloadButton("log_download_effect", "Download Forest Plot"))
                             )
                           )
                         )
@@ -648,11 +599,47 @@ function corScreenshotWithoutScatterBtn() {
                           mainPanel(
                             tabsetPanel(
                               id = "multi_tabs",
-                              tabPanel("Test Result", verbatimTextOutput("multi_result")),
+                              tabPanel("Test Result", uiOutput("multi_result")),
                               tabPanel("Assumptions",
+                                       uiOutput("note_title_mult"),
                                        plotOutput("multi_assump", height = "700px"),
                                        br(),
                                        downloadButton("multi_download_assump", "Download Assumption Plot"))
+                            )
+                          )
+                        )
+                      )
+             ),
+             tabPanel("Poisson Regression",
+                      fluidPage(
+                        titlePanel("Poisson Regression"),
+                        sidebarLayout(
+                          sidebarPanel(
+                            fileInput("poiss_file", "Upload CSV File", accept = ".csv"),
+                            uiOutput("poiss_dep_ui"),
+                            uiOutput("poiss_indep_ui"),
+                            uiOutput("poiss_interact_ui"),
+                            actionButton("poiss_run", "Run Poisson", class = "btn-success"),
+                            tags$div(style = "margin-top: 5px;"),
+                            actionButton("poiss_check", "Check Assumptions", class = "btn-primary"),
+                            tags$div(style = "margin-top: 5px;"),
+                            actionButton("poiss_plot", "Plot Forest", class = "btn-info")
+                          ),
+                          mainPanel(
+                            tabsetPanel(
+                              id = "poiss_tabs",
+                              tabPanel("Test Result", uiOutput("poiss_result")),
+                              tabPanel("Assumptions",
+                                       uiOutput("poiss_overdisp_ui"), 
+                                       uiOutput("note_title_poiss"),  
+                                       plotOutput("poiss_assump", height = "700px"),
+                                       br(),
+                                       downloadButton("poiss_download_assump", "Download Assumption Plot")),
+                              tabPanel("Forest Plot",
+                                       plotOutput("poiss_effect", height = "550px", width = "600px"),
+                                       br(),
+                                       downloadButton("poiss_download_effect", "Download Forest Plot")
+                              )
                             )
                           )
                         )
@@ -671,28 +658,62 @@ function corScreenshotWithoutScatterBtn() {
                             tags$div(style = "margin-top: 5px;"),
                             actionButton("nb_check", "Check Assumptions", class = "btn-primary"),
                             tags$div(style = "margin-top: 5px;"),
-                            actionButton("nb_plot", "Plot Effects", class = "btn-info")
+                            actionButton("nb_plot", "Plot Forest", class = "btn-info")
                           ),
                           mainPanel(
                             tabsetPanel(
                               id = "nb_tabs",
-                              tabPanel("Test Result", verbatimTextOutput("nb_result")),
+                              tabPanel("Test Result", uiOutput("nb_result")),
                               tabPanel("Assumptions",
+                                       uiOutput("nb_zeroinfl_ui"),
+                                       uiOutput("note_title_nb"),
                                        plotOutput("nb_assump", height = "700px"),
                                        br(),
                                        downloadButton("nb_download_assump", "Download Assumption Plot")),
-                              tabPanel("Effect Plot",
+                              tabPanel("Forest Plot",
                                        plotOutput("nb_effect", height = "550px", width = "600px"),
                                        br(),
-                                       downloadButton("nb_download_effect", "Download Effect Plot"))
+                                       downloadButton("nb_download_effect", "Download Forest Plot"))
                             )
                           )
                         )
                       )
-             )
+             ),
+             tabPanel("Zero-Inflated Negative Binomial",
+                      fluidPage(
+                        titlePanel("Zero-Inflated Negative Binomial Regression"),
+                        sidebarLayout(
+                          sidebarPanel(
+                            fileInput("zinb_file", "Upload CSV File", accept = ".csv"),
+                            uiOutput("zinb_dep_ui"),
+                            uiOutput("zinb_indep_ui"),
+                            uiOutput("zinb_interact_ui"),
+                            actionButton("zinb_run", "Run ZINB", class = "btn-success"),
+                            tags$div(style = "margin-top: 5px;"),
+                            actionButton("zinb_check", "Check Assumptions", class = "btn-primary"),
+                            tags$div(style = "margin-top: 5px;"),
+                            actionButton("zinb_plot", "Plot Forest", class = "btn-info")
+                          ),
+                          mainPanel(
+                            tabsetPanel(
+                              id = "zinb_tabs",
+                              tabPanel("Test Result", uiOutput("zinb_result")),
+                              tabPanel("Assumptions",
+                                       uiOutput("note_title_zinb"),
+                                       plotOutput("zinb_assump", height = "700px"),
+                                       br(),
+                                       downloadButton("zinb_download_assump", "Download Assumption Plot")),
+                              tabPanel("Forest Plot",
+                                       plotOutput("zinb_effect", height = "550px", width = "600px"),
+                                       br(),
+                                       downloadButton("zinb_download_effect", "Download Forest Plot"))
+                            )
+                          )
+                        )
+                      )
+             ),
            ),
-
-  tabPanel("Correlation",
+    tabPanel("Correlation",
            fluidPage(
              #titlePanel("Correlation Analysis"),
              sidebarLayout(
@@ -776,12 +797,25 @@ function corScreenshotWithoutScatterBtn() {
                    ),
                    tabPanel(
                      "Test Results",
-                     uiOutput("cor_result_content"),
-                     uiOutput("cor_table_ui"),
-                     uiOutput("cor_heatmap_ui"),
-                     uiOutput("cor_download_heatmap_ui"),
-                     uiOutput("cor_matrix_download_ui"),
-                     uiOutput("cor_download_table_ui")
+                     conditionalPanel(
+                       condition = "!output.cor_too_many_features",
+                       uiOutput("cor_table_title"), 
+                       uiOutput("cor_result_content"),
+                       uiOutput("cor_table_ui"),
+                       uiOutput("heatmap_error"),
+                       uiOutput("cor_heatmap_ui"),
+                       uiOutput("cor_download_heatmap_ui"),
+                       uiOutput("cor_matrix_download_ui"),
+                       uiOutput("cor_download_table_ui")
+                     ),
+                     conditionalPanel(
+                       condition = "output.cor_too_many_features",
+                       div(
+                         style="color:#a00; font-weight:bold; margin-top:18px;",
+                         icon("exclamation-triangle", lib="font-awesome"),
+                         "Correlation results, plots, downloads, and tooltips are disabled for >100 features. Please use the slider or manual selection to reduce the number of features and then click on 'Run Correlation' button."
+                       )
+                     )
                    )
                  )
                )
@@ -853,7 +887,7 @@ function corScreenshotWithoutScatterBtn() {
       h4(icon("vial", style = "margin-right: 8px; color: #9EC2D1;"), "Supported Statistical Tools",
          style = "color: #2c3e50; font-weight: 600;"),
 
-      p("AssumpSure supports a wide range of parametric and nonparametric tests, including:", style = "color: #444; margin-top: 10px;"),
+      p(strong("AssumpSure"), "supports a wide range of parametric and nonparametric tests, including:", style = "color: #444; margin-top: 10px;"),
 
       fluidRow(
         column(6,
@@ -872,7 +906,7 @@ function corScreenshotWithoutScatterBtn() {
                  tags$li(icon("dot-circle", style = "color: #3A9BB2; margin-right: 10px;"), "Chi-square & Fisher’s Exact Test"),
                  tags$li(icon("dot-circle", style = "color: #3A9BB2; margin-right: 10px;"), "Linear and mixed-effects regression models"),
                  tags$li(icon("dot-circle", style = "color: #3A9BB2; margin-right: 10px;"), "Logistic & Multinomial Regression"),
-                 tags$li(icon("dot-circle", style = "color: #3A9BB2; margin-right: 10px;"), "Negative Binomial Regression"),
+                 tags$li(icon("dot-circle", style = "color: #3A9BB2; margin-right: 10px;"), "Poisson & Negative Binomial Regression"),
                  tags$li(icon("dot-circle", style = "color: #3A9BB2; margin-right: 10px;"), "Correlation analyses")
                )
         )
@@ -886,7 +920,7 @@ function corScreenshotWithoutScatterBtn() {
          "How to Choose the Right Test",
          style = "color: #2c3e50; font-weight: 600;"),
 
-      p("Not sure which test to run? Use these simple rules based on your data type. AssumpSure will also suggest the correct test if assumptions aren't met.",
+      p("Not sure which test to run? Start with these simple rules based on your data type.", strong("AssumpSure"), "will recommend the most appropriate test if your initial choice is not suitable.",
         style = "color: #444; margin-top: 10px;"),
 
       tags$ul(
@@ -915,7 +949,7 @@ function corScreenshotWithoutScatterBtn() {
 
         tags$li(
           icon("check-circle", style = "color: #3A9BB2; margin-right: 8px;"),
-          "If your dependent variable is a count (e.g., number of visits, gene reads): use ", strong("Negative Binomial Regression")
+          "If your dependent variable is a count (e.g., number of visits, gene reads): use ", strong("Poisson Regression")
         ),
 
         tags$li(
@@ -925,7 +959,7 @@ function corScreenshotWithoutScatterBtn() {
 
         tags$li(
           icon("check-circle", style = "color: #3A9BB2; margin-right: 8px;"),
-          "If you have two categorical variables (e.g., gender and response):"
+          "If you have two categorical variables (e.g., treatment and response):"
         ),
         tags$ul(
           style = "margin-top: -5px;",
@@ -954,19 +988,30 @@ function corScreenshotWithoutScatterBtn() {
 
       tags$ul(
         style = "color: #444;",
-        tags$li("If a test button is disabled, make sure all required variables are selected."),
-        tags$li("For assumption warnings, check the data distribution and consider transformations if needed."),
+        tags$li("Ensure the data is in long format, not wide format."),
+        tags$li("Always check the tooltips for the best guidance."),
         tags$li("Ensure timepoint is correctly labeled as 'timepoint' for longitudinal models.")
       ),
 
       hr(),
+  
+  # Developer Info
+  h4(icon("user", style = "margin-right: 8px; color: #E3A599;"), "Developer",
+     style = "color: #2c3e50; font-weight: 600;"),
+  
+  p(
+    HTML('This app was developed by <strong>Ahmed Bargheet, PhD</strong>.'),
+    style = "color: #444; text-align: left; margin-top: 10px;"
+  ),
+  
+  hr(),
 
       # Contact Info
   h4(icon("envelope", style = "margin-right: 8px; color: #E3A599;"), "Need Help?",
      style = "color: #2c3e50; font-weight: 600;"),
 
   p(
-    HTML('For feedback, questions, or bug reports, please contact us <a href="mailto:ahmed.bargheet@yahoo.com" style="color: #3A9BB2; text-decoration: underline;">HERE</a>.'),
+    HTML('For feedback, questions, or bug reports, please contact me <a href="mailto:ahmed.bargheet@yahoo.com" style="color: #3A9BB2; text-decoration: underline;">HERE</a>.'),
     style = "color: #444; text-align: left; margin-top: 10px;"
   ),
 
@@ -1012,10 +1057,13 @@ server <- function(input, output, session) {
       df[] <- lapply(df, function(col) {
         if (is.character(col) && length(unique(col)) <= 50) {
           return(factor(col))
+        } else if (is.logical(col)) {
+          return(factor(col))
         } else {
           return(col)
         }
       })
+      
       
       df
     }, error = function(e) {
@@ -1042,7 +1090,15 @@ server <- function(input, output, session) {
     })]
     
     tagList(
-      selectInput("value_col", "Select Numeric Value Column (continuous):",
+      selectInput("value_col",
+                  tagList(
+                    "Select Numeric Value Column (continuous):",
+                    tags$span(
+                      icon("info-circle", class = "fa-solid"),
+                      `data-bs-toggle` = "tooltip",
+                      `data-bs-placement` = "right",
+                      title = "Note: Only continuous variables are displayed. Count or discrete variables are excluded because they violate the normality and homogeneity assumptions of t-tests and ANOVA. For count outcomes, please use the Poisson regression (under 'Regression Models tab')."
+                    )),
                   choices = c("Choose" = "", numeric_vars)),
       selectInput("group_col", "Select Group/Condition Column (categorical):",
                   choices = c("Choose" = "", cat_vars))
@@ -1065,6 +1121,9 @@ server <- function(input, output, session) {
   # --- Reactive: processed data ---
   processed_data <- reactiveVal(NULL)
   run_test_clicked <- reactiveVal(FALSE)
+  welch_clicked <- reactiveVal(FALSE)
+  welch_anova_clicked <- reactiveVal(FALSE)
+  
   assumptions_met <- reactive({
     df <- processed_data()
     if (is.null(df)) return(FALSE)
@@ -1153,12 +1212,20 @@ server <- function(input, output, session) {
   })
 
 
+  # reset Welch ANOVA
+  observeEvent(input$file, { welch_anova_clicked(FALSE) })
+  observeEvent(input$test_type, { welch_anova_clicked(FALSE) })
+  observeEvent(input$value_col, { welch_anova_clicked(FALSE) })
+  observeEvent(input$group_col, { welch_anova_clicked(FALSE) })
+  
+  
+  
   # Reset everything when the user changes anything
   reset_results <- function() {
     output$test_result_with_square <- renderUI({ NULL })
     output$boxplot <- renderPlot({ NULL })
-    output$actual_test_result <- renderPrint({ NULL })
-    output$posthoc_result <- renderPrint({ NULL })
+    output$actual_test_result <- renderUI({ NULL })
+    output$posthoc_result <- renderUI({ NULL })
     output$posthoc_result_ui <- renderUI({ NULL })
     run_test_clicked(FALSE)
   }
@@ -1166,7 +1233,7 @@ server <- function(input, output, session) {
   # Show the post hoc results area only when button is pressed
   observeEvent(input$run_posthoc, {
     output$posthoc_result_ui <- renderUI({
-      verbatimTextOutput("posthoc_result")
+      uiOutput("posthoc_result")
     })
     # (rest of your code to render posthoc_result itself)
   })
@@ -1242,17 +1309,32 @@ server <- function(input, output, session) {
       droplevels()
     # New: Minimum checks
     ngroups <- nlevels(df$group)
-    if (input$test_type == "independent_ttest" && (ngroups != 2 || any(table(df$group) < 2))) {
-      showNotification(strong("More than two groups detected. Please use One-way ANOVA. Independent t-test is only for comparing exactly two groups."), type = "error")
-      return()
+    group_sizes <- table(df$group)
+    if (input$test_type == "independent_ttest") {
+      if (ngroups < 2) {
+        showNotification(strong("Only one group detected. Independent t-test requires exactly two groups."), type = "error")
+        return()
+      }
+      if (ngroups > 2) {
+        showNotification(strong("More than two groups detected. Please use One-way ANOVA. Independent t-test is only for comparing exactly two groups."), type = "error")
+        return()
+      }
+      if (any(group_sizes < 2)) {
+        showNotification(strong("Each group must have at least two observations for independent t-test."), type = "error")
+        return()
+      }
     }
     if (input$test_type == "dependent_ttest") {
       counts <- table(df$group)
       ngroups <- length(counts)
       group_sizes <- as.numeric(counts)
       
-      if (ngroups != 2) {
-        showNotification(strong("More than two groups detected. Please use One-way ANOVA. Paired t-test is only for comparing exactly two groups."), type = "error", duration = 3)
+      if (ngroups < 2) {
+        showNotification(strong("Only one group detected. Paired t-test requires exactly two groups."), type = "error", duration = 5)
+        return()
+      }
+      if (ngroups > 2) {
+        showNotification(strong("More than two groups detected. Please use One-way ANOVA. Paired t-test is only for comparing exactly two groups."), type = "error", duration = 5)
         return()
       }
       if (length(unique(group_sizes)) > 1) {
@@ -1260,121 +1342,45 @@ server <- function(input, output, session) {
         return()
       }
       if (any(group_sizes < 3)) {
-        showNotification(strong("Paired t-test requires at least 3 samples in each group."), type = "error")
+        showNotification(strong("Paired t-test requires at least 3 samples in each group."), type = "error", 
+                         duration = 3)
         return()
       }
     }
     
+    
     # ---- ANOVA GROUP CHECK ----
     if (input$test_type == "anova" && ngroups < 3) {
-      showNotification(strong("Only two groups detected. Please use a t-test (independent or paired, as appropriate). One-way ANOVA is for three or more groups."), type = "error", duration = 5)
+      showNotification(strong("Only two groups detected. Please use a t-test (independent or paired, as appropriate). One-way ANOVA is for three or more groups."), type = "error", duration = 8)
       return()
     }
     processed_data(df)
   })
 
-  # For Mann-Whitney: always prep data when test is run and assumptions button is disabled
-  observeEvent({
-    input$run_test
-    input$test_type
-  }, {
-    if (input$test_type == "mannwhitney") {
-      req(data(), input$value_col, input$group_col)
-      df0 <- data()
-      if (!is.null(input$timepoint) && input$timepoint != "" && "timepoint" %in% names(df0)) {
-        df0 <- dplyr::filter(df0, timepoint == input$timepoint)
-      }
-      value_is_numeric <- is.numeric(type.convert(df0[[input$value_col]], as.is = TRUE))
-      group_is_numeric <- is.numeric(type.convert(df0[[input$group_col]], as.is = TRUE))
-      if (!value_is_numeric) {
-        showNotification(strong("The selected value column is not numeric. Please select a numeric column."), 
-                         type = "error")
-        return()
-      }
-      if (group_is_numeric) {
-        showNotification(strong("The selected group column is numeric. Please select a categorical (group) column."), type = "error")
-        return()
-      }
-      df <- df0 %>%
-        dplyr::select(value = !!sym(input$value_col), group = !!sym(input$group_col)) %>%
-        dplyr::mutate(value = as.numeric(as.character(value)),
-               group = as.factor(group)) %>%
-        dplyr::filter(!is.na(value), !is.na(group)) %>%
-        droplevels()
-      processed_data(df)
-    }
-  }, ignoreInit = TRUE)
-
-  # For Wilcoxon signed-rank: always prep data when test is run and assumptions button is disabled
-  observeEvent({
-    input$run_test
-    input$test_type
-  }, {
-    if (input$test_type == "wilcoxon_signed") {
-      req(data(), input$value_col, input$group_col)
-      df0 <- data()
-      if (!is.null(input$timepoint) && input$timepoint != "" && "timepoint" %in% names(df0)) {
-        df0 <- dplyr::filter(df0, timepoint == input$timepoint)
-      }
-      value_is_numeric <- is.numeric(type.convert(df0[[input$value_col]], as.is = TRUE))
-      group_is_numeric <- is.numeric(type.convert(df0[[input$group_col]], as.is = TRUE))
-      if (!value_is_numeric) {
-        showNotification(strong("The selected value column is not numeric. Please select a numeric column."), 
-                         type = "error")
-        return()
-      }
-      if (group_is_numeric) {
-        showNotification(strong("The selected group column is numeric. Please select a categorical (group) column."), type = "error")
-        return()
-      }
-      df <- df0 %>%
-        dplyr::select(value = !!sym(input$value_col), group = !!sym(input$group_col)) %>%
-        dplyr::mutate(value = as.numeric(as.character(value)),
-               group = as.factor(group)) %>%
-        dplyr::filter(!is.na(value), !is.na(group)) %>%
-        droplevels()
-      processed_data(df)
-    }
-  }, ignoreInit = TRUE)
-
-  # For Kruskal–Wallis: always prep data when test is run and assumptions button is disabled
-  observeEvent({
-    input$run_test
-    input$test_type
-  }, {
-    if (input$test_type == "kruskal") {
-      req(data(), input$value_col, input$group_col)
-      df0 <- data()
-      if (!is.null(input$timepoint) && input$timepoint != "" && "timepoint" %in% names(df0)) {
-        df0 <- dplyr::filter(df0, timepoint == input$timepoint)
-      }
-      value_is_numeric <- is.numeric(type.convert(df0[[input$value_col]], as.is = TRUE))
-      group_is_numeric <- is.numeric(type.convert(df0[[input$group_col]], as.is = TRUE))
-      if (!value_is_numeric) {
-        showNotification(strong("The selected value column is not numeric. Please select a numeric column."), 
-                         type = "error")
-        return()
-      }
-      if (group_is_numeric) {
-        showNotification(strong("The selected group column is numeric. Please select a categorical (group) column."), type = "error")
-        return()
-      }
-      df <- df0 %>%
-        dplyr::select(value = !!sym(input$value_col), group = !!sym(input$group_col)) %>%
-        dplyr::mutate(value = as.numeric(as.character(value)),
-               group = as.factor(group)) %>%
-        dplyr::filter(!is.na(value), !is.na(group)) %>%
-        droplevels()
-      processed_data(df)
-    }
-  }, ignoreInit = TRUE)
-
+  
+  observeEvent(input$file, { welch_clicked(FALSE) })
+  observeEvent(input$check_assumptions, { welch_clicked(FALSE) })
+  
 
  # Run the Post hoc test
   observeEvent(input$run_posthoc, {
     df <- processed_data()
     method <- input$posthoc_method
-    if (is.null(df) || is.null(method)) return()
+    
+    # Check for missing or empty selection BEFORE running any test
+    if (is.null(method) || method == "") {
+      msg <- if (input$test_type == "anova") {
+        strong("Please choose Tukey HSD or a p-value correction method.")
+      } else if (input$test_type == "kruskal") {
+        strong("Please choose a p-value correction method.")
+      } else {
+        strong("Please choose a post hoc method.")
+      }
+      showNotification(msg, type = "error")
+      output$posthoc_result <- renderUI({ NULL })
+      return()
+    }
+    if (is.null(df)) return()
 
     if (input$test_type == "kruskal") {
       posthoc <- tryCatch({
@@ -1394,11 +1400,59 @@ server <- function(input, output, session) {
       posthoc <- NULL
     }
 
-    output$posthoc_result <- renderPrint({
-      if (!is.null(posthoc)) posthoc %>% knitr::kable(align = "c", "simple")
+    
+    
+    output$posthoc_result <- renderUI({
+      if (is.null(posthoc)) return(NULL)
+      
+      tbl_post <- posthoc %>%
+        knitr::kable(align = "c", format = "html") %>%
+        kableExtra::kable_styling(bootstrap_options = c("hover", "condensed", "bordered"), 
+                                  position = "left") %>%
+        kableExtra::scroll_box(width = "100%", height = "100%")
+      
+      # Compute pairwise effect size
+      effsize_tbl <- NULL
+      pairs <- unique(posthoc[, c("group1", "group2")])
+      
+      if (nrow(pairs) > 0 && all(c("group1", "group2") %in% names(pairs))) {
+        effsize_list <- lapply(1:nrow(pairs), function(i) {
+          g1 <- as.character(pairs$group1[i])
+          g2 <- as.character(pairs$group2[i])
+          dat <- subset(processed_data(), group %in% c(g1, g2))
+          dat$group <- droplevels(dat$group)
+          tryCatch({
+            if (input$test_type == "anova") {
+              rstatix::cohens_d(value ~ group, data = dat, paired = FALSE)
+            } else if (input$test_type == "kruskal") {
+              rstatix::wilcox_effsize(value ~ group, data = dat, paired = FALSE)
+            } else {
+              NULL
+            }
+          }, error = function(e) NULL)
+        })
+        effsize_tbl <- dplyr::bind_rows(effsize_list) %>%
+          knitr::kable(format = "html", align = "c") %>%
+          kableExtra::kable_styling(bootstrap_options = c("hover", "condensed", "bordered"), 
+                                    position = "left", full_width = TRUE) %>%
+          kableExtra::scroll_box(width = "100%", height = "100%")
+      }
+      
+      tagList(
+        div(style = "margin-top: 15px;", HTML(tbl_post)),
+        if (!is.null(effsize_tbl)) {
+          tagList(
+            tags$h5(style = "margin-top: 20px;", strong("Effect size (Wilcoxon r, unpaired)")),
+            div(style = "margin-top: 8px;", HTML(effsize_tbl))
+          )
+        }
+      )
     })
+    
   })
 
+  
+  
 
   # --- Assumption Content UI ---
 
@@ -1412,11 +1466,11 @@ assumption_ui_independent <- function() {
   shap_failed <- if (!is.na(shap_p[1])) any(shap_p <= 0.05) else FALSE
   tagList(
     br(),
-    h4("Assumption Test Results"),
+    h4(strong("Assumption Test Results")),
     div(
-      h5("Levene's Test (Equal Variance)"),
-      div(style = "background-color: #f0f0f0; padding: 10px; border-radius: 5px;",
-          verbatimTextOutput("levene_text")),
+      h5(strong("Levene's Test (Equal Variance)")),
+      div(style = "background-color: #fcfcfc; padding: 10px; border-radius: 5px;",
+          uiOutput("levene_text")),
       if (!is.na(lev_p))
         div(
           style = paste0("background-color: ", if (lev_p <= 0.05) "#B20D00" else "green",
@@ -1431,9 +1485,9 @@ assumption_ui_independent <- function() {
     ),
     div(
       br(),
-      h5("Shapiro-Wilk Test (Normality)"),
-      div(style = "background-color: #f0f0f0; padding: 10px; border-radius: 5px;",
-          verbatimTextOutput("shapiro_text")),
+      h5(strong("Shapiro-Wilk Test (Normality)")),
+      div(style = "background-color: #fcfcfc; padding: 10px; border-radius: 5px;",
+          uiOutput("shapiro_text")),
       if (!is.na(shap_p[1]))
         div(
           style = paste0("background-color: ", if (shap_failed) "#B20D00" else "green",
@@ -1447,14 +1501,38 @@ assumption_ui_independent <- function() {
         )
     ),
     br(),
-    h4("Diagnostic Plots"),
+    h4(strong("Diagnostic Plots")),
     fluidRow(
-      column(6, plotOutput("qq_plot"), downloadButton("download_qq", "Download Q-Q Plot", class = "no-print")),
-      column(6, plotOutput("histogram_plot"), downloadButton("download_histogram", "Download Histogram", 
-                                                             class = "no-print"))
+      column(6, plotOutput("qq_plot"),
+             div(
+               style = "display: flex; align-items: center;",
+               downloadButton("download_qq", "Download Q-Q Plot", class = "no-print"),
+               tags$span(
+                 icon("info-circle", class = "fa-solid"),
+                 `data-bs-toggle` = "tooltip",
+                 `data-bs-placement` = "right",
+                 title = "If the points in the Q-Q plot fall close to the diagonal line, the data are likely normally distributed. Large or systematic deviations from the line indicate the data are not normal.",
+                 class = "no-print",
+                 style = "margin-left:8px; color: black; cursor: pointer;"
+               )
+             )
+      ),
+      column(6,
+        plotOutput("histogram_plot"),
+        div(
+          style = "display: flex; align-items: center;",
+          downloadButton("download_histogram", "Download Histogram", class = "no-print"),
+          tags$span(
+            icon("info-circle", class = "fa-solid"),
+            `data-bs-toggle` = "tooltip",
+            `data-bs-placement` = "right",
+            title = "A normal distribution appears as a bell-shaped, symmetrical histogram. Noticeable skew or multiple peaks indicate the data are likely not normally distributed.",
+            class = "no-print",
+            style = "margin-left:8px; color: black; cursor: pointer;"
+          )))
     ),
     br(),
-    h4("Assumption Check Summary"),
+    h4(strong("Assumption Check Summary")),
     uiOutput("assumption_summary")
   )
 }
@@ -1465,11 +1543,11 @@ assumption_ui_dependent <- function() {
   shap_p <- if (!is.null(shap_res) && "p.value" %in% names(shap_res)) shap_res$p.value[1] else NA
   tagList(
     br(),
-    h4("Assumption Test Results (Paired T-test)"),
+    h4(strong("Assumption Test Results (Paired T-test)")),
     div(
-      h5("Shapiro-Wilk Test (Normality of Differences)"),
-      div(style = "background-color: #f0f0f0; padding: 10px; border-radius: 5px;",
-          verbatimTextOutput("shapiro_text")),
+      h5(strong("Shapiro-Wilk Test (Normality of Differences)")),
+      div(style = "background-color: #fcfcfc; padding: 10px; border-radius: 5px;",
+          uiOutput("shapiro_text")),
       if (is.numeric(shap_p) && !is.na(shap_p) && length(shap_p) == 1)
         div(
           style = paste0("background-color: ", if (shap_p <= 0.05) "#B20D00" else "green",
@@ -1483,15 +1561,38 @@ assumption_ui_dependent <- function() {
         )
     ),
     br(),
-    h4("Diagnostic Plots"),
+    h4(strong("Diagnostic Plots")),
     fluidRow(
-      column(6, plotOutput("qq_plot"), 
-             downloadButton("download_qq", "Download Q-Q Plot", class = "no-print")),
-      column(6, plotOutput("histogram_plot"), downloadButton("download_histogram", "Download Histogram", 
-                                                             class = "no-print"))
+      column(6, plotOutput("qq_plot"),
+             div(
+               style = "display: flex; align-items: center;",
+               downloadButton("download_qq", "Download Q-Q Plot", class = "no-print"),
+               tags$span(
+                 icon("info-circle", class = "fa-solid"),
+                 `data-bs-toggle` = "tooltip",
+                 `data-bs-placement` = "right",
+                 title = "If the points in the Q-Q plot fall close to the diagonal line, the data are likely normally distributed. Large or systematic deviations from the line indicate the data are not normal.",
+                 class = "no-print",
+                 style = "margin-left:8px; color: black; cursor: pointer;"
+               )
+             )
+      ),
+      column(6,
+             plotOutput("histogram_plot"),
+             div(
+               style = "display: flex; align-items: center;",
+               downloadButton("download_histogram", "Download Histogram", class = "no-print"),
+               tags$span(
+                 icon("info-circle", class = "fa-solid"),
+                 `data-bs-toggle` = "tooltip",
+                 `data-bs-placement` = "right",
+                 title = "A normal distribution appears as a bell-shaped, symmetrical histogram. Noticeable skew or multiple peaks indicate the data are likely not normally distributed.",
+                 class = "no-print",
+                 style = "margin-left:8px; color: black; cursor: pointer;"
+               )))
     ),
     br(),
-    h4("Assumption Check Summary"),
+    h4(strong("Assumption Check Summary")),
     uiOutput("assumption_summary")
   )
 }
@@ -1506,11 +1607,11 @@ assumption_ui_anova <- function() {
   shap_failed <- if (!is.na(shap_p[1])) any(shap_p <= 0.05) else FALSE
   tagList(
     br(),
-    h4("Assumption Test Results"),
+    h4(strong("Assumption Test Results")),
     div(
-      h5("Levene's Test (Equal Variance)"),
-      div(style = "background-color: #f0f0f0; padding: 10px; border-radius: 5px;",
-          verbatimTextOutput("levene_text")),
+      h5(strong("Levene's Test (Equal Variance)")),
+      div(style = "background-color: #fcfcfc; padding: 10px; border-radius: 5px;",
+          uiOutput("levene_text")),
       if (!is.na(lev_p))
         div(
           style = paste0("background-color: ", if (lev_p <= 0.05) "#B20D00" else "green",
@@ -1525,9 +1626,9 @@ assumption_ui_anova <- function() {
     ),
     div(
       br(),
-      h5("Shapiro-Wilk Test (Normality)"),
-      div(style = "background-color: #f0f0f0; padding: 10px; border-radius: 5px;",
-          verbatimTextOutput("shapiro_text")),
+      h5(strong("Shapiro-Wilk Test (Normality)")),
+      div(style = "background-color: #fcfcfc; padding: 10px; border-radius: 5px;",
+          uiOutput("shapiro_text")),
       if (!is.na(shap_p[1]))
         div(
           style = paste0("background-color: ", if (shap_failed) "#B20D00" else "green",
@@ -1541,16 +1642,40 @@ assumption_ui_anova <- function() {
         )
     ),
     br(),
-    h4("Diagnostic Plots"),
+    h4(strong("Diagnostic Plots")),
     {
       lev_res <- levene_result()
       shap_res <- shapiro_result()
       has_check_error <- is.null(lev_res) || is.null(shap_res)
       if (!has_check_error) {
         fluidRow(
-          column(6, plotOutput("qq_plot"), downloadButton("download_qq", "Download Q-Q Plot", class = "no-print")),
-          column(6, plotOutput("histogram_plot"), downloadButton("download_histogram", "Download Histogram", 
-                                                                 class = "no-print"))
+          column(6, plotOutput("qq_plot"),
+                 div(
+                   style = "display: flex; align-items: center;",
+                   downloadButton("download_qq", "Download Q-Q Plot", class = "no-print"),
+                   tags$span(
+                     icon("info-circle", class = "fa-solid"),
+                     `data-bs-toggle` = "tooltip",
+                     `data-bs-placement` = "right",
+                     title = "If the points in the Q-Q plot fall close to the diagonal line, the data are likely normally distributed. Large or systematic deviations from the line indicate the data are not normal.",
+                     class = "no-print",
+                     style = "margin-left:8px; color: black; cursor: pointer;"
+                   )
+                 )
+          ),
+          column(6,
+                 plotOutput("histogram_plot"),
+                 div(
+                   style = "display: flex; align-items: center;",
+                   downloadButton("download_histogram", "Download Histogram", class = "no-print"),
+                   tags$span(
+                     icon("info-circle", class = "fa-solid"),
+                     `data-bs-toggle` = "tooltip",
+                     `data-bs-placement` = "right",
+                     title = "A normal distribution appears as a bell-shaped, symmetrical histogram. Noticeable skew or multiple peaks indicate the data are likely not normally distributed.",
+                     class = "no-print",
+                     style = "margin-left:8px; color: black; cursor: pointer;"
+                   )))
         )
       } else {
         div(style = "color: #b00; margin: 10px 0;",
@@ -1558,7 +1683,7 @@ assumption_ui_anova <- function() {
       }
     },
     br(),
-    h4("Assumption Check Summary"),
+    h4(strong("Assumption Check Summary")),
     uiOutput("assumption_summary")
   )
 }
@@ -1609,7 +1734,7 @@ shapiro_text_anova <- function(df) {
 
 
 # --- Refactored Shapiro Output renderPrint ---
-output$shapiro_text <- renderPrint({
+output$shapiro_text <- renderUI({
   df <- processed_data()
   if (is.null(df)) return(NULL)
   shap <- switch(
@@ -1620,16 +1745,31 @@ output$shapiro_text <- renderPrint({
     NULL
   )
   if (is.null(shap)) return(NULL)
-  knitr::kable(shap, align = "c", "simple")
+  #knitr::kable(shap, align = "c", "simple")
+  #HTML(knitr::kable(shap, align = "c", format = "html", table.attr='class="table table-condensed table-bordered table-striped"'))
+  
+  tbl <- knitr::kable(shap, format = "html", align = "c")
+  tbl <- tbl %>%
+    kableExtra::kable_styling(
+      bootstrap_options = c("hover", "condensed", "bordered"),
+      position = "center", full_width = T)
+  HTML(tbl)
+  
 })
 
 
 # Levene test
 ## independent t-test
-output$levene_text <- renderPrint({
+output$levene_text <- renderUI({
   lev <- levene_result()
   if (is.null(lev)) return(NULL)
-  knitr::kable(lev, align = "c", "simple")
+  #knitr::kable(lev, align = "c", "simple")
+  
+  tbl_lev <- knitr::kable(lev, format = "html", align = "c")  # Center columns
+  tbl_lev <- kableExtra::kable_styling(tbl_lev, 
+                                       bootstrap_options = c("hover", "condensed", "bordered"), 
+                                   position = "center", full_width = T)
+  HTML(tbl_lev)
 })
 
 
@@ -1847,30 +1987,68 @@ output$levene_text <- renderPrint({
 ## Independent t-test
   assumption_summary_independent <- function(df) {
     normality <- shapiro_result()
-    levene_result <- levene_result()
+    levene <- levene_result()
     normality_p <- if ("p" %in% names(normality)) normality$p else NA
-    variance_p <- if ("p" %in% names(levene_result)) levene_result$p else NA
+    variance_p <- if ("p" %in% names(levene)) levene$p else NA
     variance_passed <- !is.na(variance_p) && variance_p > 0.05
+    min_n <- min(table(df$group))
     
-    if (all(!is.na(normality_p)) && all(normality_p > 0.10) && variance_passed) {
-      div(
+    # Case 1: All assumptions met and n >= 10
+    if (all(!is.na(normality_p)) && all(normality_p > 0.10) && variance_passed && !is.na(min_n) && min_n >= 10) {
+      return(div(
         style = "background-color: green; color: white; padding: 10px; border-radius: 5px;",
         strong("✓ Assumptions Passed"),
-        p("Parametric test (T-test) can be performed with confidence.")
-      )
-    } else if (any(!is.na(normality_p) & normality_p > 0.05 & normality_p <= 0.10) && variance_passed) {
-      div(
-        style = "background-color: #ffc107; color: #222; padding: 10px; border-radius: 5px;",
-        strong("! Borderline normality"),
-        p("Normality assumption is borderline (Shapiro-Wilk p = 0.05-0.1). Please check the histogram or QQ plot. When uncertain, Wilcoxon signed-rank test is a robust alternative.")
-      )
-    } else {
-      div(
+        p("Parametric independent t-test can be performed with confidence.")
+      ))
+    }
+    
+    # Case 2: Normal, variance OK, but small sample size (<10)
+    if (all(!is.na(normality_p)) && all(normality_p > 0.10) && variance_passed && !is.na(min_n) && min_n < 10) {
+      return(div(
+        style = "background-color: #ffc107; color: black; padding: 10px; border-radius: 5px;",
+        strong("! Normality assumed but small sample size"),
+        p("Normality and variance assumptions are met, but at least one group has < 10 observations. Normality tests are unreliable with small samples. Please, check QQ plot and histogram. When uncertain, use the ", strong("Mann-Whitney U test."))
+      ))
+    }
+    
+    # Case 3: Assumptions not met (either non-normality or both failed)
+    failed_normality <- any(!is.na(normality_p) & normality_p <= 0.05)
+    failed_variance <- !is.na(variance_p) && variance_p <= 0.05
+    if (failed_normality || (failed_normality && failed_variance)) {
+      return(div(
         style = "background-color: #B20D00; color: white; padding: 10px; border-radius: 5px;",
         strong("✗ Assumptions Not Met"),
         p("Consider the non-parametric alternative:", strong("Mann-Whitney U test."))
-      )
+      ))
     }
+    
+    # Case 4: Normality met, but variance unequal (recommend Welch's t-test)
+    if (all(!is.na(normality_p)) && all(normality_p > 0.10) && !variance_passed) {
+      return(div(
+        style = "background-color: #ffc107; color: #222; padding: 10px; border-radius: 5px;",
+        strong("! Equal variance assumption not met"),
+        p("Data are normally distributed, but variances differ between groups. The independent t-test is not appropriate.",
+          "Click below to run ", strong("Welch’s t-test,"), "which accounts for unequal variances."),
+        # (Add actionButton here if implementing)
+        actionButton("run_welch", "Run Welch’s t-test", class = "btn-warning no-print welch-white")
+      ))
+    }
+    
+    # Case 5: Borderline normality (0.05 < p <= 0.10), variance OK
+    if (any(!is.na(normality_p) & normality_p > 0.05 & normality_p <= 0.10) && variance_passed) {
+      return(div(
+        style = "background-color: #ffc107; color: #222; padding: 10px; border-radius: 5px;",
+        strong("! Borderline Normality"),
+        p("Normality assumption is borderline (Shapiro-Wilk p = 0.05–0.10). Please check the histograms and QQ plots. When uncertain, use the ", strong("Mann-Whitney U test."))
+      ))
+    }
+    
+    # Fallback: If assumptions can't be checked due to missing/incomplete data
+    div(
+      style = "background-color: #B20D00; color: white; padding: 10px; border-radius: 5px;",
+      strong("✗ Assumptions Could Not Be Evaluated"),
+      p("One or more assumption tests failed due to missing or invalid data.")
+    )
   }
   
 
@@ -1889,30 +2067,49 @@ output$levene_text <- renderPrint({
     diff <- v1 - v2
     shapiro_diff <- rstatix::shapiro_test(diff)
     shapiro_p <- if ("p.value" %in% names(shapiro_diff)) shapiro_diff$p.value else NA
+    min_n <- length(diff)
     
-    if (!is.na(shapiro_p) && shapiro_p > 0.10) {
-      div(
+    # Case 1: All assumptions met and n >= 10
+    if (!is.na(shapiro_p) && shapiro_p > 0.10 && min_n >= 10) {
+      return(div(
         style = "background-color: green; color: white; padding: 10px; border-radius: 5px;",
         strong("✓ Assumptions Passed"),
         p("Parametric paired t-test can be performed with confidence.")
-      )
-    } else if (!is.na(shapiro_p) && shapiro_p > 0.05 && shapiro_p <= 0.10) {
-      div(
-        style = "background-color: #ffc107; color: #222; padding: 10px; border-radius: 5px;",
-        strong("! Borderline normality"),
-        p(sprintf(
-          "Normality assumption for paired differences is borderline (Shapiro-Wilk p = %.4f). Please check the histogram or QQ plot. When uncertain, Wilcoxon signed-rank test is a robust alternative.",
-          shapiro_p
-        ))
-      )
-    } else {
-      div(
+      ))
+    }
+    # Case 2: Normal, but small sample size (<10)
+    if (!is.na(shapiro_p) && shapiro_p > 0.10 && min_n < 10) {
+      return(div(
+        style = "background-color: #ffc107; color: black; padding: 10px; border-radius: 5px;",
+        strong("! Normality assumed but small sample size"),
+        p("Normality is met, but at least one group has < 10 observations. Normality tests are unreliable with small samples. Please, check QQ plot and histogram. When uncertain, use the ", strong("Wilcoxon signed-rank test."))
+      ))
+    }
+    # Case 3: Assumptions not met (non-normality)
+    if (!is.na(shapiro_p) && shapiro_p <= 0.05) {
+      return(div(
         style = "background-color: #B20D00; color: white; padding: 10px; border-radius: 5px;",
         strong("✗ Assumptions Not Met"),
-        p("Consider a non-parametric alternative:", strong("Wilcoxon signed-rank test."))
-      )
+        p("Consider the non-parametric alternative:", strong("Wilcoxon signed-rank test."))
+      ))
     }
+    # Case 4: Borderline normality (0.05 < p <= 0.10)
+    if (!is.na(shapiro_p) && shapiro_p > 0.05 && shapiro_p <= 0.10) {
+      return(div(
+        style = "background-color: #ffc107; color: #222; padding: 10px; border-radius: 5px;",
+        strong("! Borderline Normality"),
+        p("Normality assumption is borderline (Shapiro-Wilk p = 0.05–0.10). Please check the histogram and QQ plot. When uncertain, use the ", strong("Wilcoxon signed-rank test."))
+      ))
+    }
+    # Fallback
+    div(
+      style = "background-color: #B20D00; color: white; padding: 10px; border-radius: 5px;",
+      strong("✗ Assumptions Could Not Be Evaluated"),
+      p("One or more assumption tests failed due to missing or invalid data.")
+    )
   }
+  
+  
   
 
 ## One-way ANOVA
@@ -1920,31 +2117,69 @@ output$levene_text <- renderPrint({
     normality <- shapiro_result()
     levene_res <- levene_result()
     if (is.null(normality) || is.null(levene_res)) return(NULL)
+    
     pval_col <- if ("p" %in% names(normality)) "p" else if ("p.value" %in% names(normality)) "p.value" else NULL
     normality_p <- if (!is.null(pval_col)) na.omit(normality[[pval_col]]) else NA
     variance_p <- if ("p" %in% names(levene_res)) levene_res$p else NA
     variance_passed <- !is.na(variance_p) && variance_p > 0.05
     
+    # Convenience flags
+    failed_normality <- any(!is.na(normality_p) & normality_p <= 0.05)
+    borderline_normality <- any(!is.na(normality_p) & normality_p > 0.05 & normality_p <= 0.10)
+    failed_variance <- !is.na(variance_p) && variance_p <= 0.05
+    
+    # Case 1: All assumptions passed
     if (all(!is.na(normality_p)) && all(normality_p > 0.10) && variance_passed) {
-      div(
+      return(div(
         style = "background-color: green; color: white; padding: 10px; border-radius: 5px;",
         strong("✓ Assumptions Passed"),
         p("Parametric test (One-way ANOVA) can be performed with confidence.")
-      )
-    } else if (any(!is.na(normality_p) & normality_p > 0.05 & normality_p <= 0.10) && variance_passed) {
-      div(
+      ))
+    }
+    
+    # Case 2a: Borderline normality (variance OK)
+    if (borderline_normality && variance_passed) {
+      return(div(
         style = "background-color: #ffc107; color: #222; padding: 10px; border-radius: 5px;",
         strong("! Borderline normality"),
-        p("Normality assumption is borderline for one or more groups (Shapiro-Wilk p = 0.05-0.1). Please check the histograms or QQ plots. When uncertain, Kruskal–Wallis is a robust alternative."
-        )
-      )
-    } else {
-      div(
+        p("Normality assumption is borderline for one or more groups (Shapiro-Wilk p = 0.05-0.10). Please check the histograms or QQ plots. When uncertain,", strong("Kruskal–Wallis"), "is a robust alternative.")
+      ))
+    }
+    
+    # Case 2b: Borderline normality + variance violated
+    if (borderline_normality && failed_variance) {
+      return(div(
+        style = "background-color: #ffc107; color: #222; padding: 10px; border-radius: 5px;",
+        strong("! Borderline normality AND equal variance assumption not met"),
+        p("Data show borderline normality (Shapiro-Wilk p = 0.05–0.10) and unequal variances. Welch’s ANOVA is not recommended. Use the non-parametric ", strong("Kruskal–Wallis test."))
+      ))
+    }
+    
+    # Case 3: Normality OK, variance violated --> show Welch ANOVA button
+    if (all(!is.na(normality_p)) && all(normality_p > 0.10) && failed_variance) {
+      return(div(
+        style = "background-color: #ffc107; color: #222; padding: 10px; border-radius: 5px;",
+        strong("! Equal variance assumption not met"),
+        p("Data are normally distributed, but variances differ between groups. The standard one-way ANOVA is not appropriate. Click below to run ", strong("Welch’s ANOVA,"), "which accounts for unequal variances."),
+        actionButton("run_welch_anova", "Run Welch’s ANOVA", class = "btn-warning no-print welch-white")
+      ))
+    }
+    
+    # Case 4: Any group fails normality
+    if (failed_normality) {
+      return(div(
         style = "background-color: #B20D00; color: white; padding: 10px; border-radius: 5px;",
         strong("✗ Assumptions Not Met"),
         p("Consider a non-parametric alternative:", strong("Kruskal–Wallis test."))
-      )
+      ))
     }
+    
+    # Fallback: cannot check assumptions
+    div(
+      style = "background-color: #B20D00; color: white; padding: 10px; border-radius: 5px;",
+      strong("✗ Assumptions Could Not Be Evaluated"),
+      p("One or more assumption tests failed due to missing or invalid data.")
+    )
   }
   
 
@@ -2069,11 +2304,11 @@ output$levene_text <- renderPrint({
   })
 
   output$show_screenshot_btn <- renderUI({
-    # Show only if the report is not empty
-    if (!is.null(processed_data())) {
+    # Only show if data is available and NOT for nonparametric tests
+    if (!is.null(processed_data()) && 
+        !(input$test_type %in% c("mannwhitney", "wilcoxon_signed", "kruskal"))) {
       div(
         id = "screenshot_div",
-        #style = "display: none;",  # Hidden by default, shown programmatically
         actionButton("screenshot_btn", "Download Full Report", class = "btn-plot",
                      onclick = "screenshotWithoutDownloadBtns()")
       )
@@ -2086,14 +2321,16 @@ output$levene_text <- renderPrint({
 ## Independent t-test
   run_independent_test <- function(df) {
     tryCatch({
-      rstatix::t_test(df, value ~ group, paired = FALSE, detailed = TRUE)
+      rstatix::t_test(df, value ~ group, paired = FALSE, detailed = TRUE) %>% 
+        dplyr::mutate(method = "Independent t-test")
     }, error = function(e) data.frame(p = NA))
   }
 
 ## Dependent t-test
   run_dependent_test <- function(df) {
     tryCatch({
-      rstatix::t_test(df, value ~ group, paired = TRUE, detailed = TRUE)
+      rstatix::t_test(df, value ~ group, paired = TRUE, detailed = TRUE) %>% 
+        dplyr::mutate(method = "Paired t-test")
     }, error = function(e) data.frame(p = NA))
   }
 
@@ -2105,7 +2342,8 @@ output$levene_text <- renderPrint({
       return(data.frame(p = NA))
     }
     tryCatch({
-      rstatix::wilcox_test(df, value ~ group, paired = F, detailed = T)
+      rstatix::wilcox_test(df, value ~ group, paired = F, detailed = T) %>% 
+        dplyr::mutate(method = "Mann-Whitney")
     }, error = function(e) data.frame(p = NA))
   }
   
@@ -2127,7 +2365,7 @@ run_wilcoxon_signed_test <- function(df) {
 ## One-way ANOVA
   run_anova_test <- function(df) {
     tryCatch({
-      rstatix::anova_test(df, value ~ group)
+      rstatix::anova_test(df, value ~ group, white.adjust = T)
     }, error = function(e) data.frame(p = NA))
   }
 
@@ -2137,6 +2375,15 @@ run_wilcoxon_signed_test <- function(df) {
       rstatix::kruskal_test(df, value ~ group)
     }, error = function(e) data.frame(p = NA))
   }
+  
+  ## Welch's t-test test
+  run_welch_test <- function(df) {
+    tryCatch({
+      rstatix::t_test(df, value ~ group, var.equal = F, paired = F, detailed = T) %>% 
+        dplyr::mutate(method = "Welch’s t-test")
+    }, error = function(e) data.frame(p = NA))
+  }
+  
 
   # Later: add run_wilcoxon_test, run_anova_test, etc.
 
@@ -2149,19 +2396,21 @@ run_wilcoxon_signed_test <- function(df) {
     
     # Extra check for Kruskal
     if (input$test_type == "kruskal" && nlevels(df$group) < 3) return(NULL)
-
+    
     pval <- if (input$test_type == "anova") {
       run_anova_test(df)$p[1]
     } else {
       run_kruskal_test(df)$p[1]
     }
-
-    if (!is.na(pval) && pval < 0.05) {
+    
+    if (is.na(pval)) return(NULL)
+    
+    if (pval < 0.05) {
       if (input$test_type == "anova") {
         tagList(
           br(),
-          h4("Post hoc (Tukey HSD & p-value correction)"),
-          selectInput("posthoc_method", "Choose p-value adjustment method or Tukey HSD:",
+          h4(strong("Post hoc (Tukey HSD & p-value correction)")),
+          selectInput("posthoc_method", strong("Choose p-value adjustment method or Tukey HSD:"),
                       choices = c("Choose" = "", "Bonferroni" = "bonferroni", "Benjamini-Hochberg (BH)" = "BH",
                                   "Benjamini-Yekutieli (BY)" = "BY", "FDR" = "fdr",
                                   "Holm" = "holm", "Hommel" = "hommel", "Tukey HSD" = "tukey")),
@@ -2179,16 +2428,35 @@ run_wilcoxon_signed_test <- function(df) {
         )
       }
     } else {
-      NULL
+      # Show message if not significant
+      div(
+        style = "background-color: #fff3cd; color: #856404; padding: 10px; border-radius: 
+        border:1px solid #ffeeba: 5px; margin-top: 10px;",
+        shiny::icon("exclamation-circle", class = "fa-solid", style = "margin-right: 7px;"),
+        strong("Post hoc pairwise comparisons are only available if the test was statistically significant.")
+      )
     }
   })
+  
 
 
   # Jump to Assumption Tests when 'Check Assumptions' is clicked
   observeEvent(input$check_assumptions, {
     updateTabsetPanel(session, inputId = "cont_tabs", selected = "Assumption Tests")
   })
+  
+  # Jump to Test result when click on Welch
+  observeEvent(input$run_welch, {
+    welch_clicked(TRUE)
+    updateTabsetPanel(session, inputId = "cont_tabs", selected = "Test Results")
+  })
 
+  # Jump to Test result when click on Welch ANOVA
+  observeEvent(input$run_welch_anova, {
+    welch_anova_clicked(TRUE)
+    updateTabsetPanel(session, inputId = "cont_tabs", selected = "Test Results")
+  })
+  
 
   assumptions_checked <- reactiveVal(FALSE)
 
@@ -2197,6 +2465,7 @@ run_wilcoxon_signed_test <- function(df) {
 
     # Use the correct test type values as in your UI
     parametric_tests <- c("independent_ttest", "dependent_ttest", "anova")
+    nonparametric_tests <- c("mannwhitney", "wilcoxon_signed", "kruskal")
     
     # ---- Required Input Checks (before running test) ----
     if (is.null(input$file)) {
@@ -2222,6 +2491,34 @@ run_wilcoxon_signed_test <- function(df) {
       return(NULL)
     }
 
+    # Process data for nonparametric tests ONLY when Run Test is clicked
+    if (input$test_type %in% nonparametric_tests) {
+      df0 <- data()
+      if (!is.null(input$timepoint) && input$timepoint != "" && "timepoint" %in% names(df0)) {
+        df0 <- dplyr::filter(df0, timepoint == input$timepoint)
+      }
+      value_is_numeric <- is.numeric(type.convert(df0[[input$value_col]], as.is = TRUE))
+      group_is_numeric <- is.numeric(type.convert(df0[[input$group_col]], as.is = TRUE))
+      if (!value_is_numeric) {
+        showNotification(strong("The selected value column is not numeric. Please select a numeric column."), 
+                         type = "error")
+        return()
+      }
+      if (group_is_numeric) {
+        showNotification(strong("The selected group column is numeric. Please select a categorical (group) column."), type = "error")
+        return()
+      }
+      df <- df0 %>%
+        dplyr::select(value = !!sym(input$value_col), group = !!sym(input$group_col)) %>%
+        dplyr::mutate(
+          value = as.numeric(as.character(value)),
+          group = as.factor(group)
+        ) %>%
+        dplyr::filter(!is.na(value), !is.na(group)) %>%
+        droplevels()
+      processed_data(df)
+    }
+    
     # Switch to the test results tab
     updateTabsetPanel(session, inputId = "cont_tabs", selected = "Test Results")
 
@@ -2246,64 +2543,275 @@ run_wilcoxon_signed_test <- function(df) {
 
     # Output rendering
     output$test_result_with_square <- renderUI({
+      if (input$test_type == "welch") return(NULL)
       if (!should_show_test_result()) return(NULL)
       df <- processed_data()
       if (is.null(df)) return(NULL)
       if (input$test_type == "kruskal") {
         ngroups <- nlevels(df$group)
         if (ngroups < 3) {
-          showNotification(strong("Kruskal-Wallis requires at least 3 groups. For two groups, use the Wilcoxon or Mann–Whitney test (as appropriate)."), type = "error")
+          showNotification(strong("Kruskal-Wallis requires at least 3 groups. For two groups, use the Wilcoxon or Mann–Whitney test (as appropriate)."), type = "error", duration = 5)
           return(NULL)
-        }}
+        }
+      }
       if (!assumptions_met()) {
-        div(style = "background-color: #e0e0e0; color: #222; padding: 14px; border-radius: 5px; font-size: 1.1em; margin-top: 10px;",
-            strong("This test is not suitable for your data."),
-            br(),
-            "Assumptions for this test are not met."
+        div(
+          style = "background-color: #e0e0e0; color: #222; padding: 14px; border-radius: 5px; font-size: 1.1em; margin-top: 10px;",
+          strong("This test is not suitable for your data."),
+          br(),
+          "Assumptions for this test are not met."
         )
       } else {
         tagList(
-          verbatimTextOutput("actual_test_result"),
-          stat_square_func(df)
+          uiOutput("actual_test_result"),
+          stat_square_func(df),
+          
+          # Independent t-test: Cohen's d
+          if (input$test_type == "independent_ttest") {
+            d_res <- tryCatch(
+              rstatix::cohens_d(value ~ group, data = df, paired = FALSE),
+              error = function(e) NULL
+            )
+            if (!is.null(d_res)) {
+              d_res <- d_res %>% knitr::kable(format = "html", align = "c") %>%
+                kableExtra::kable_styling(
+                  bootstrap_options = c("hover", "condensed", "bordered"),
+                  position = "left", full_width = TRUE) %>%
+                kableExtra::scroll_box(width = "100%", height = "100%")
+              tagList(
+                div(
+                  style = "margin-top: 18px;",
+                  tags$h5(strong("Effect size (Cohen's d, unpaired)")),
+                  div(style = "margin-top: 8px;", HTML(d_res))
+                )
+              )
+            }
+          },
+          
+          # Paired t-test: Cohen's d (paired=TRUE)
+          if (input$test_type == "dependent_ttest") {
+            d_res <- tryCatch(
+              rstatix::cohens_d(value ~ group, data = df, paired = TRUE),
+              error = function(e) NULL
+            )
+            if (!is.null(d_res)) {
+              d_res <- d_res %>% knitr::kable(format = "html", align = "c") %>%
+                kableExtra::kable_styling(
+                  bootstrap_options = c("hover", "condensed", "bordered"),
+                  position = "left", full_width = TRUE) %>%
+                kableExtra::scroll_box(width = "100%", height = "100%")
+              tagList(
+                div(
+                  style = "margin-top: 18px;",
+                  tags$h5(strong("Effect size (Cohen's d, paired)")),
+                  div(style = "margin-top: 8px;", HTML(d_res))
+                )
+              )
+            }
+          },
+          
+          # Mann-Whitney U: Wilcoxon effect size (paired=FALSE)
+          if (input$test_type == "mannwhitney") {
+            w_res <- tryCatch(
+              rstatix::wilcox_effsize(value ~ group, data = df, paired = FALSE),
+              error = function(e) NULL
+            )
+            if (!is.null(w_res)) {
+              w_res <- w_res %>% knitr::kable(format = "html", align = "c") %>%
+                kableExtra::kable_styling(
+                  bootstrap_options = c("hover", "condensed", "bordered"),
+                  position = "left", full_width = TRUE) %>%
+                kableExtra::scroll_box(width = "100%", height = "100%")
+              tagList(
+                div(
+                  style = "margin-top: 18px;",
+                  tags$h5(strong("Effect size (Wilcoxon r, unpaired)")),
+                  div(style = "margin-top: 8px;", HTML(w_res))
+                )
+              )
+            }
+          },
+          
+          # Wilcoxon Signed-Rank: Wilcoxon effect size (paired=TRUE)
+          if (input$test_type == "wilcoxon_signed") {
+            w_res <- tryCatch(
+              rstatix::wilcox_effsize(value ~ group, data = df, paired = TRUE),
+              error = function(e) NULL
+            )
+            if (!is.null(w_res)) {
+              w_res <- w_res %>% knitr::kable(format = "html", align = "c") %>%
+                kableExtra::kable_styling(
+                  bootstrap_options = c("hover", "condensed", "bordered"),
+                  position = "left", full_width = TRUE) %>%
+                kableExtra::scroll_box(width = "100%", height = "100%")
+              tagList(
+                div(
+                  style = "margin-top: 18px;",
+                  tags$h5(strong("Effect size (Wilcoxon r, paired)")),
+                  div(style = "margin-top: 8px;", HTML(w_res))
+                )
+              )
+            }
+          },
+          
+          # ANOVA: Eta squared
+          if (input$test_type == "anova") {
+            eta_res <- tryCatch(
+              aov(value ~ group, data = df) %>%
+                rstatix::eta_squared() %>%
+                tidyr::as_tibble() %>%
+                dplyr::mutate(n = nrow(df)) %>%
+                dplyr::rename("effsize" = "value") %>%
+                dplyr::mutate(method = "eta2") %>%
+                dplyr::mutate(magnitude = dplyr::case_when(
+                  effsize < 0.06 ~ "small",
+                  effsize >= 0.06 & effsize < 0.14 ~ "medium",
+                  effsize >= 0.14 ~ "large"
+                )) %>%
+                dplyr::mutate(.y. = "value") %>%
+                dplyr::select(.y., n, effsize, method, magnitude),
+              error = function(e) NULL
+            )
+            if (!is.null(eta_res)) {
+              eta_res <- eta_res %>% knitr::kable(format = "html", align = "c") %>%
+                kableExtra::kable_styling(
+                  bootstrap_options = c("hover", "condensed", "bordered"),
+                  position = "left", full_width = TRUE) %>%
+                kableExtra::scroll_box(width = "100%", height = "100%")
+              tagList(
+                div(
+                  style = "margin-top: 18px;",
+                  tags$h5(strong("Effect size (Eta squared η²)")),
+                  div(style = "margin-top: 8px;", HTML(eta_res))
+                )
+              )
+            }
+          },
+          
+          # Kruskal-Wallis: Eta2[H]
+          if (input$test_type == "kruskal") {
+            k_res <- tryCatch(
+              rstatix::kruskal_effsize(value ~ group, data = df),
+              error = function(e) NULL
+            )
+            if (!is.null(k_res)) {
+              k_res <- k_res %>% knitr::kable(format = "html", align = "c") %>%
+                kableExtra::kable_styling(
+                  bootstrap_options = c("hover", "condensed", "bordered"),
+                  position = "left", full_width = TRUE) %>%
+                kableExtra::scroll_box(width = "100%", height = "100%")
+              tagList(
+                div(
+                  style = "margin-top: 18px;",
+                  tags$h5(strong("Effect size (Kruskal-Wallis eta-squared (η²[H])")),
+                  div(style = "margin-top: 8px;", HTML(k_res))
+                )
+              )
+            }
+          }
         )
       }
     })
-    output$actual_test_result <- renderPrint({
+    
+    
+    output$actual_test_result <- renderUI({
       if (!should_show_test_result()) return(NULL)
       df <- processed_data()
       switch(
         input$test_type,
         "independent_ttest" = {
           res <- run_independent_test(df)
-          res %>% knitr::kable(align = "c", "simple")
+          #res %>% knitr::kable(align = "c", "simple")
+          res <- res %>% knitr::kable(format = "html", align = "c")
+          res <- res %>% kableExtra::kable_styling(
+            bootstrap_options = c("hover", "condensed", "bordered"), 
+            position = "left", full_width = T) %>% 
+            kableExtra::scroll_box(width = "100%", height = "100%")
+          div(style = "margin-top: 15px;",
+            HTML(res)
+          )
+          
         },
         "dependent_ttest"   = {
           res <- run_dependent_test(df)
-          res %>% knitr::kable(align = "c", "simple")
+          #res %>% knitr::kable(align = "c", "simple")
+          res <- res %>% knitr::kable(format = "html", align = "c")
+          res <- res %>% kableExtra::kable_styling(
+            bootstrap_options = c("hover", "condensed", "bordered"), 
+            position = "left", full_width = T)
+          div(style = "margin-top: 15px;",
+              HTML(res)
+          )
         },
         "mannwhitney" = {
           res <- run_mannwhitney_test(df)
-          res %>% knitr::kable(align = "c", "simple")
+          #res %>% knitr::kable(align = "c", "simple")
+          res <- res %>% knitr::kable(format = "html", align = "c")
+          res <- res %>% kableExtra::kable_styling(
+            bootstrap_options = c("hover", "condensed", "bordered"), 
+            position = "left", full_width = T)
+          div(style = "margin-top: 15px;",
+              HTML(res)
+          )
         },
         "wilcoxon_signed" = {
           res <- run_wilcoxon_signed_test(df)
-          res %>% knitr::kable(align = "c", "simple")
+          #res %>% knitr::kable(align = "c", "simple")
+          res <- res %>% knitr::kable(format = "html", align = "c")
+          res <- res %>% kableExtra::kable_styling(
+            bootstrap_options = c("hover", "condensed", "bordered"), 
+            position = "left", full_width = T) 
+          div(style = "margin-top: 15px;",
+              HTML(res)
+          )
         },
         "anova" = {
           res <- run_anova_test(df)
-          res %>% knitr::kable(align = "c", "simple")
+          #res %>% knitr::kable(align = "c", "simple")
+          res <- res %>% knitr::kable(format = "html", align = "c")
+          res <- res %>% kableExtra::kable_styling(
+            bootstrap_options = c("hover", "condensed", "bordered"), 
+            position = "left", full_width = T)%>% 
+            kableExtra::scroll_box(width = "100%", height = "100%")
+          div(style = "margin-top: 15px;",
+              HTML(res)
+          )
         },
         "kruskal" = {
           res <- run_kruskal_test(df)
-          res %>% knitr::kable(align = "c", "simple")
+          #res %>% knitr::kable(align = "c", "simple")
+          res <- res %>% knitr::kable(format = "html", align = "c")
+          res <- res %>% kableExtra::kable_styling(
+            bootstrap_options = c("hover", "condensed", "bordered"), 
+            position = "left", full_width = T)%>% 
+            kableExtra::scroll_box(width = "100%", height = "100%")
+          div(style = "margin-top: 15px;",
+              HTML(res)
+          )
         },
         "chisq" = {
           res <- run_chisq_test(df)
-          res %>% knitr::kable(align = "c", "simple")
+          #res %>% knitr::kable(align = "c", "simple")
+          res <- res %>% knitr::kable(format = "html", align = "c")
+          res <- res %>% kableExtra::kable_styling(
+            bootstrap_options = c("hover", "condensed", "bordered"), 
+            position = "left", full_width = T)%>% 
+            kableExtra::scroll_box(width = "100%", height = "100%")
+          div(style = "margin-top: 15px;",
+              HTML(res)
+          )
         },
         "fisher" = {
           res <- run_fisher_test(df)
-          res %>% knitr::kable(align = "c", "simple")
+          #res %>% knitr::kable(align = "c", "simple")
+          res <- res %>% knitr::kable(format = "html", align = "c")
+          res <- res %>% kableExtra::kable_styling(
+            bootstrap_options = c("hover", "condensed", "bordered"), 
+            position = "left", full_width = T)%>% 
+            kableExtra::scroll_box(width = "100%", height = "100%")
+          div(style = "margin-top: 15px;",
+              HTML(res)
+          )
         },
         ## add the rest
         NULL
@@ -2311,6 +2819,192 @@ run_wilcoxon_signed_test <- function(df) {
     })
     
   })
+  
+  # Show Welch result UI when clicked:
+  output$welch_result <- renderUI({
+    req(welch_clicked())
+    df <- processed_data()
+    res <- run_welch_test(df)
+    res_tbl <- res %>% 
+      knitr::kable(format = "html", align = "c") %>%
+      kableExtra::kable_styling(
+        bootstrap_options = c("hover", "condensed", "bordered"), 
+        position = "left", full_width = TRUE
+      ) %>%
+      kableExtra::scroll_box(width = "100%", height = "100%")
+    
+    # Colored square (significance)
+    square <- stat_square_welch(df)
+    
+    # Effect size (Cohen's d, Welch version)
+    effsize <- df %>% rstatix::cohens_d(value ~ group, var.equal = FALSE)
+    effsize_tbl <- effsize %>%
+      knitr::kable(format = "html", align = "c") %>%
+      kableExtra::kable_styling(
+        bootstrap_options = c("hover", "condensed", "bordered"),
+        position = "left", full_width = TRUE
+      ) %>%
+      kableExtra::scroll_box(width = "100%", height = "100%")
+    
+    div(
+      style = "margin-top: 15px;",
+      HTML(res_tbl),
+      square,
+      div(style = "margin-top: 18px;"),   # Space before Cohen's d
+      tags$h5(strong("Effect size (Cohen's d, unpaired)")),
+      HTML(effsize_tbl)
+    )
+  })
+  
+  
+  # Welch's ANOVA
+  output$welch_anova_result <- renderUI({
+    req(welch_anova_clicked())
+    df <- processed_data()
+    if (is.null(df)) return(NULL)
+    
+    # 1. Run Welch ANOVA
+    res <- tryCatch({
+      rstatix::welch_anova_test(df, value ~ group)
+    }, error = function(e) data.frame(p = NA))
+    
+    res_tbl <- res %>%
+      knitr::kable(format = "html", align = "c") %>%
+      kableExtra::kable_styling(
+        bootstrap_options = c("hover", "condensed", "bordered"),
+        position = "left", full_width = TRUE
+      ) %>%
+      kableExtra::scroll_box(width = "100%", height = "100%")
+    
+    # 2. Significance Square
+    pval <- if ("p" %in% names(res)) res$p[1] else NA
+    square <- div(
+      style = paste0(
+        "background-color: ", if (!is.na(pval) && pval < 0.05) "green" else "#B20D00",
+        "; color: white; padding: 10px; border-radius: 5px; margin-top: 10px;"
+      ),
+      strong(if (!is.na(pval) && pval < 0.05) "Statistically Significant Difference" else "No Statistically Significant Difference")
+    )
+    
+    # 3. Effect size: Omega squared (ω²) using effectsize package
+    effsize_tbl <- NULL
+    if (requireNamespace("effectsize", quietly = TRUE)) {
+      welch_mod <- tryCatch(oneway.test(value ~ group, data = df, var.equal = FALSE), error = function(e) NULL)
+      effsize <- tryCatch(effectsize::omega_squared(welch_mod), error = function(e) NULL)
+      if (!is.null(effsize)) {
+        effsize_df <- as.data.frame(effsize)
+        effsize_df$method <- "omega2"
+        effsize_df$magnitude <- dplyr::case_when(
+          effsize_df$Omega2 < 0.01 ~ "negligible",
+          effsize_df$Omega2 < 0.06 ~ "small",
+          effsize_df$Omega2 < 0.14 ~ "medium",
+          TRUE ~ "large"
+        )
+        effsize_tbl <- effsize_df %>%
+          knitr::kable(format = "html", align = "c") %>%
+          kableExtra::kable_styling(
+            bootstrap_options = c("hover", "condensed", "bordered"),
+            position = "left", full_width = TRUE
+          ) %>%
+          kableExtra::scroll_box(width = "100%", height = "100%")
+      }
+    }
+    
+
+    # 4. Post hoc: Button if significant, else warning message
+    posthoc_ui <- if (!is.na(pval) && pval < 0.05) {
+      actionButton("run_games_howell", "Run Post hoc Test", class = "btn-plot",
+                   style = "margin-top: 15px;")
+    } else {
+      div(
+        style = "background-color: #fff3cd; color: #856404; padding: 10px; border-radius: 5px; border:1px solid #ffeeba; margin-top: 10px;",
+        shiny::icon("exclamation-circle", class = "fa-solid", style = "margin-right: 7px;"),
+        strong("Post hoc pairwise comparisons are only available if the test was statistically significant.")
+      )
+    }
+    
+    
+    tagList(
+      div(style = "margin-top: 15px;", HTML(res_tbl)),
+      square,
+      if (!is.null(effsize_tbl)) {
+        tagList(
+          div(style = "margin-top: 18px;"),
+          tags$h5(strong("Effect size (Omega squared, ω²)")),
+          div(style = "margin-top: 8px;", HTML(effsize_tbl))
+        )
+      },
+      posthoc_ui,                       # Post hoc button or warning message
+      uiOutput("posthoc_result_ui"),    # Then post hoc results
+      actionButton("plot_boxplot_welch_anova", "Plot Boxplot", class = "btn-plot", style = "margin-top: 12px;"),
+      plotOutput("boxplot_welch_anova", height = "350px"),
+      downloadButton("download_boxplot_welch_anova", "Download Boxplot", class = "no-print", style = "margin-top: 10px;")
+    )
+    
+    
+  })
+  
+  # Observe Games-Howell post hoc button
+  observeEvent(input$run_games_howell, {
+    df <- processed_data()
+    # Games-Howell requires >= 3 groups
+    if (is.null(df) || nlevels(df$group) < 3) {
+      showNotification(strong("Games-Howell test requires at least 3 groups."), type = "error")
+      return(NULL)
+    }
+    # 1. Games-Howell
+    posthoc <- tryCatch({
+      rstatix::games_howell_test(df, value ~ group, detailed = TRUE)
+    }, error = function(e) data.frame(error = e$message))
+    
+    output$posthoc_result_ui <- renderUI({
+      if (is.null(posthoc)) return(NULL)
+      
+      # Games-Howell table
+      tbl_post <- posthoc %>%
+        knitr::kable(format = "html", align = "c") %>%
+        kableExtra::kable_styling(bootstrap_options = c("hover", "condensed", "bordered"),
+                                  position = "left") %>%
+        kableExtra::scroll_box(width = "100%", height = "100%")
+      
+      # Compute pairwise Cohen's d
+      effsize_tbl <- NULL
+      pairs <- unique(posthoc[, c("group1", "group2")])
+      
+      if (nrow(pairs) > 0 && all(c("group1", "group2") %in% names(pairs))) {
+        effsize_list <- lapply(1:nrow(pairs), function(i) {
+          g1 <- as.character(pairs$group1[i])
+          g2 <- as.character(pairs$group2[i])
+          dat <- subset(processed_data(), group %in% c(g1, g2))
+          dat$group <- droplevels(dat$group)
+          tryCatch({
+            # Always Cohen's d for Welch
+            rstatix::cohens_d(value ~ group, data = dat, paired = FALSE)
+          }, error = function(e) NULL)
+        })
+        effsize_tbl <- dplyr::bind_rows(effsize_list) %>%
+          knitr::kable(format = "html", align = "c") %>%
+          kableExtra::kable_styling(bootstrap_options = c("hover", "condensed", "bordered"), 
+                                    position = "left", full_width = TRUE) %>%
+          kableExtra::scroll_box(width = "100%", height = "100%")
+      }
+      
+      tagList(
+        tags$h5(style = "margin-top: 10px;", strong("Games-Howell Post hoc Results")),
+        HTML(tbl_post),
+        if (!is.null(effsize_tbl)) {
+          tagList(
+            div(style = "margin-top: 18px;"),
+            tags$h5(strong("Effect Size (Cohen’s d) for Each Pairwise Comparison")),
+            div(style = "margin-top: 8px;", HTML(effsize_tbl))
+          )
+        }
+      )
+    })
+  })
+  
+  
+  
 
   stat_square_func <- function(df) {
     switch(
@@ -2348,7 +3042,28 @@ run_wilcoxon_signed_test <- function(df) {
 
   # --- Put these right after the above block ---
   observeEvent(input$file,     { run_test_clicked(FALSE) })
-  observeEvent(input$test_type, { run_test_clicked(FALSE) })
+  observeEvent(input$test_type, {
+    # Reset flag for whether Run Test has been clicked
+    run_test_clicked(FALSE)
+    
+    # Reset any processed data (so no stale data is reused)
+    processed_data(NULL)
+    
+    # Reset Welch test flag if you have one
+    welch_clicked(FALSE)
+    
+    # Clear any error messages or status reactives (if you use them)
+    # error_status(NULL)
+    
+    # Clear the main test result output UI
+    output$test_result_with_square <- renderUI({ NULL })
+    
+    # Clear boxplot or other plot outputs
+    output$your_boxplot_output <- renderPlot({ NULL })  # Use actual output IDs
+    
+    # If you have other download button logic, reset those as well
+    # download_enabled(FALSE)
+  })
 
   # --- Statistical Significance Square ---
 
@@ -2359,6 +3074,15 @@ run_wilcoxon_signed_test <- function(df) {
     div(style = paste0("background-color: ", if (pval < 0.05) "green" else "#B20D00", "; color: white; padding: 10px; border-radius: 5px; margin-top: 10px;"),
         strong(if (pval < 0.05) "Statistically Significant Difference" else "No Statistically Significant Difference"))
   }
+  
+  ## Welch's test
+  stat_square_welch <- function(df) {
+    pval <- run_welch_test(df)$p[1]
+    if (is.na(pval)) return(NULL)
+    div(style = paste0("background-color: ", if (pval < 0.05) "green" else "#B20D00", "; color: white; padding: 10px; border-radius: 5px; margin-top: 10px;"),
+        strong(if (pval < 0.05) "Statistically Significant Difference" else "No Statistically Significant Difference"))
+  }
+  
 
 ## Dependent t-test
   stat_square_dependent <- function(df) {
@@ -2422,6 +3146,57 @@ output$statistical_significance_square <- renderUI({
     )
   })
 
+# Statistic square for Welch's test
+output$welch_square <- renderUI({
+  req(input$run_welch)  # Triggers when Welch is run
+  df <- processed_data()
+  if (is.null(df)) return(NULL)
+  stat_square_welch(df)
+})
+
+
+output$welch_boxplot_ui <- renderUI({
+  req(welch_clicked())
+  tagList(
+    actionButton("plot_boxplot_welch", "Plot Boxplot", class = "btn-plot", style = "margin-top: 10px;"),
+    plotOutput("boxplot_welch", height = "350px"),
+    downloadButton("download_boxplot_welch", "Download Boxplot", class = "no-print", style = "margin-top: 10px;")
+  )
+})
+
+
+output$boxplot_ui <- renderUI({
+  # Only show boxplot when appropriate
+  req(run_test_clicked())
+  df <- processed_data()
+  test <- input$test_type
+  
+  # Don't show for missing data or failed assumptions
+  if (is.null(df) || !assumptions_met()) return(NULL)
+  
+  # Mann-Whitney: must have exactly 2 groups
+  if (test == "mannwhitney" && nlevels(df$group) != 2) return(NULL)
+  
+  # Wilcoxon signed-rank: must have exactly 2 groups AND equal sizes (paired data)
+  if (test == "wilcoxon_signed") {
+    if (nlevels(df$group) != 2) return(NULL)
+    group_sizes <- table(df$group)
+    if (length(unique(group_sizes)) != 1) return(NULL)
+  }
+  
+  # For Kruskal: Only show if >= 3 groups
+  if (test == "kruskal" && nlevels(df$group) < 3) return(NULL)
+  
+  tagList(
+    actionButton("plot_boxplot", "Plot Boxplot", class = "btn-plot"),
+    plotOutput("boxplot"),
+    downloadButton("download_boxplot", "Download Boxplot", class = "no-print")
+  )
+})
+
+
+
+
   # --- Boxplot (independent) ---
   plot_independent_boxplot <- function(df) {
     
@@ -2431,7 +3206,7 @@ output$statistical_significance_square <- renderUI({
     # Only allow exactly 2 groups for this test
     if(length(levs) != 2) return(ggplot2::ggplot() + labs(title = "Requires exactly 2 groups"))
     # Explicitly set the comparison
-    comparison <- list(c(levs[1], levs[2]))
+    #comparison <- list(c(levs[1], levs[2]))
     
     ggplot2::ggplot(df, aes(x = group, y = value, fill = group)) +
       geom_boxplot(alpha = 0.7, width = 0.3, outlier.colour = NA) +
@@ -2449,10 +3224,11 @@ output$statistical_significance_square <- renderUI({
             legend.title = element_text(face = "bold", size = 14),
             legend.text = element_text(size = 12)) +
       theme(legend.position = "none") +
-      geom_flat_violin(position = position_nudge(x = 0.2, y = 0), alpha = 0.8, adjust = 0.9, width = 0.5) +
-      ggpubr::stat_compare_means(comparisons = comparison, method = "t.test", paired = FALSE, 
-                                 label = "p.signif", size = 5.5, vjust = 0.5)
+      geom_flat_violin(position = position_nudge(x = 0.2, y = 0), alpha = 0.8, adjust = 0.9, width = 0.5) #+
+      #ggpubr::stat_compare_means(comparisons = comparison, method = "t.test", paired = FALSE, 
+      #                           label = "p.signif", size = 5.5, vjust = 0.5)
   }
+
 
   # --- Boxplot (dependant) ---
   plot_dependent_boxplot <- function(df) {
@@ -2463,7 +3239,7 @@ output$statistical_significance_square <- renderUI({
     # Only allow exactly 2 groups for this test
     if(length(levs) != 2) return(ggplot2::ggplot() + labs(title = "Requires exactly 2 groups"))
     # Explicitly set the comparison
-    comparison <- list(c(levs[1], levs[2]))
+    #comparison <- list(c(levs[1], levs[2]))
     
     
     ggplot2::ggplot(df, aes(x = group, y = value, fill = group)) +
@@ -2482,9 +3258,9 @@ output$statistical_significance_square <- renderUI({
             legend.title = element_text(face = "bold", size = 14),
             legend.text = element_text(size = 12)) +
       theme(legend.position = "none") +
-      geom_flat_violin(position = position_nudge(x = 0.2, y = 0), alpha = 0.8, adjust = 0.9, width = 0.5) + 
-      ggpubr::stat_compare_means(comparisons = comparison, method = "t.test", paired = TRUE, 
-                                 label = "p.signif", size = 5.5, vjust = 0.5)
+      geom_flat_violin(position = position_nudge(x = 0.2, y = 0), alpha = 0.8, adjust = 0.9, width = 0.5) #+ 
+      #ggpubr::stat_compare_means(comparisons = comparison, method = "t.test", paired = TRUE, 
+      #                           label = "p.signif", size = 5.5, vjust = 0.5)
   }
 
   # --- Boxplot (Mann-Whitney) ---
@@ -2496,7 +3272,7 @@ output$statistical_significance_square <- renderUI({
     # Only allow exactly 2 groups for this test
     if(length(levs) != 2) return(ggplot2::ggplot() + labs(title = "Requires exactly 2 groups"))
     # Explicitly set the comparison
-    comparison <- list(c(levs[1], levs[2]))
+    #comparison <- list(c(levs[1], levs[2]))
     
     ggplot2::ggplot(df, aes(x = group, y = value, fill = group)) +
       geom_boxplot(alpha = 0.7, width = 0.3, outlier.colour = NA) +
@@ -2514,9 +3290,9 @@ output$statistical_significance_square <- renderUI({
             legend.title = element_text(face = "bold", size = 14),
             legend.text = element_text(size = 12)) +
       theme(legend.position = "none") +
-      geom_flat_violin(position = position_nudge(x = 0.2, y = 0), alpha = 0.8, adjust = 0.9, width = 0.5) +
-      ggpubr::stat_compare_means(comparisons = comparison, method = "wilcox.test", paired = FALSE, 
-                                 label = "p.signif", size = 5.5, vjust = 0.5)
+      geom_flat_violin(position = position_nudge(x = 0.2, y = 0), alpha = 0.8, adjust = 0.9, width = 0.5) #+
+      #ggpubr::stat_compare_means(comparisons = comparison, method = "wilcox.test", paired = FALSE, 
+      #                           label = "p.signif", size = 5.5, vjust = 0.5)
   }
 
 # --- Boxplot (Wilcoxon signed-rank test) ---
@@ -2528,7 +3304,7 @@ output$statistical_significance_square <- renderUI({
     # Only allow exactly 2 groups for this test
     if(length(levs) != 2) return(ggplot2::ggplot() + labs(title = "Requires exactly 2 groups"))
     # Explicitly set the comparison
-    comparison <- list(c(levs[1], levs[2]))
+    #comparison <- list(c(levs[1], levs[2]))
     
     ggplot2::ggplot(df, aes(x = group, y = value, fill = group)) +
       geom_boxplot(alpha = 0.7, width = 0.3, outlier.colour = NA) +
@@ -2546,9 +3322,9 @@ output$statistical_significance_square <- renderUI({
             legend.title = element_text(face = "bold", size = 14),
             legend.text = element_text(size = 12)) +
       theme(legend.position = "none") +
-      geom_flat_violin(position = position_nudge(x = 0.2, y = 0), alpha = 0.8, adjust = 0.9, width = 0.5) + 
-      ggpubr::stat_compare_means(comparisons = comparison, method = "wilcox.test", paired = TRUE, 
-                                 label = "p.signif", size = 5.5, vjust = 0.5)
+      geom_flat_violin(position = position_nudge(x = 0.2, y = 0), alpha = 0.8, adjust = 0.9, width = 0.5) #+ 
+      #ggpubr::stat_compare_means(comparisons = comparison, method = "wilcox.test", paired = TRUE, 
+      #                           label = "p.signif", size = 5.5, vjust = 0.5)
   }
 
 # --- Boxplot (Anova) ---
@@ -2558,7 +3334,7 @@ output$statistical_significance_square <- renderUI({
     df$group <- factor(df$group)
     levs <- levels(df$group)
     # Create all pairwise comparisons
-    comparisons <- combn(levs, 2, simplify = FALSE)
+    #comparisons <- combn(levs, 2, simplify = FALSE)
     
     comparison <- combn(unique(df$group), 2, simplify = FALSE)
     p <- ggplot2::ggplot(df, aes(x = group, y = value, fill = group)) +
@@ -2575,10 +3351,10 @@ output$statistical_significance_square <- renderUI({
             legend.title = element_text(face = "bold", size = 14),
             legend.text = element_text(size = 12)) +
       theme(legend.position = "none") +
-      geom_flat_violin(position = position_nudge(x = 0.2, y = 0), alpha = 0.8, adjust = 0.9, width = 0.5) + 
-      ggpubr::stat_compare_means(comparisons = comparisons, method = "wilcox.test", paired = FALSE, 
-                                 label = "p.signif", size = 5.5, vjust = 0.5, 
-                                 p.adjust.method = "BH")
+      geom_flat_violin(position = position_nudge(x = 0.2, y = 0), alpha = 0.8, adjust = 0.9, width = 0.5) #+ 
+      #ggpubr::stat_compare_means(comparisons = comparisons, method = "wilcox.test", paired = FALSE, 
+      #                           label = "p.signif", size = 5.5, vjust = 0.5, 
+      #                           p.adjust.method = "BH")
     # Only apply Set2 if ≤ 8 groups
     if(length(levs) <= 8) {
       p <- p + scale_fill_brewer(palette = "Set2") + scale_color_brewer(palette = "Set2")
@@ -2593,7 +3369,7 @@ output$statistical_significance_square <- renderUI({
     df$group <- factor(df$group)
     levs <- levels(df$group)
     # Create all pairwise comparisons
-    comparisons <- combn(levs, 2, simplify = FALSE)
+   # comparisons <- combn(levs, 2, simplify = FALSE)
     
     comparison <- combn(unique(df$group), 2, simplify = FALSE)
     p <- ggplot2::ggplot(df, aes(x = group, y = value, fill = group)) +
@@ -2610,10 +3386,10 @@ output$statistical_significance_square <- renderUI({
             legend.title = element_text(face = "bold", size = 14),
             legend.text = element_text(size = 12)) +
       theme(legend.position = "none") +
-      geom_flat_violin(position = position_nudge(x = 0.2, y = 0), alpha = 0.8, adjust = 0.9, width = 0.5) + 
-      ggpubr::stat_compare_means(comparisons = comparisons, method = "wilcox.test", paired = FALSE, 
-                                 label = "p.signif", size = 5.5, vjust = 0.5, 
-                                 p.adjust.method = "BH")
+      geom_flat_violin(position = position_nudge(x = 0.2, y = 0), alpha = 0.8, adjust = 0.9, width = 0.5) #+ 
+      #ggpubr::stat_compare_means(comparisons = comparisons, method = "wilcox.test", paired = FALSE, 
+      #                           label = "p.signif", size = 5.5, vjust = 0.5, 
+      #                           p.adjust.method = "BH")
     # Only apply Set2 if ≤ 8 groups
     if(length(levs) <= 8) {
       p <- p + scale_fill_brewer(palette = "Set2") + scale_color_brewer(palette = "Set2")
@@ -2663,6 +3439,48 @@ output$statistical_significance_square <- renderUI({
       ggsave(file, plot = p, width = 5, height = 4, dpi = 600, bg = "white")
     }
   )
+  
+  observeEvent(input$plot_boxplot_welch, {
+    output$boxplot_welch <- renderPlot({
+      df <- processed_data()
+      if (is.null(df)) return(NULL)
+      plot_independent_boxplot(df) # I used in-dependent plot
+    })
+  })
+  
+  output$download_boxplot_welch <- downloadHandler(
+    filename = function() {
+      paste0("welch_boxplot_", Sys.Date(), ".png")
+    },
+    content = function(file) {
+      df <- processed_data()
+      if (is.null(df)) return(NULL)
+      p <- plot_independent_boxplot(df) # I used in-dependent plot
+      ggsave(file, plot = p, width = 5, height = 4, dpi = 600, bg = "white")
+    }
+  )
+  
+  # Boxplot Welch anova
+  observeEvent(input$plot_boxplot_welch_anova, {
+    output$boxplot_welch_anova <- renderPlot({
+      df <- processed_data()
+      if (is.null(df)) return(NULL)
+      plot_anova_boxplot(df)  # Reuse your ANOVA boxplot function
+    })
+  })
+  
+  output$download_boxplot_welch_anova <- downloadHandler(
+    filename = function() {
+      paste0("welch_anova_boxplot_", Sys.Date(), ".png")
+    },
+    content = function(file) {
+      df <- processed_data()
+      if (is.null(df)) return(NULL)
+      p <- plot_anova_boxplot(df)
+      ggsave(file, plot = p, width = 6, height = 4, dpi = 600, bg = "white")
+    }
+  )
+  
 ############################################################################################################
 ############################################################################################################
 ############################################################################################################
@@ -2674,10 +3492,13 @@ output$statistical_significance_square <- renderUI({
 
 # Fisher and Chi-square
 
+  fisher_computational_error <- reactiveVal(FALSE)
+  invalid_fisher_square <- reactiveVal(FALSE)
+  
   ## Read the data and update timepoint dropdown
   fisher_data <- reactive({
     req(input$file_fisher)
-    readr::read_csv(input$file_fisher$datapath, show_col_types = F) %>%
+    df <- readr::read_csv(input$file_fisher$datapath, show_col_types = F) %>%
       dplyr::select(
         -dplyr::contains("infant_id", ignore.case = TRUE),
         -dplyr::contains("infantid", ignore.case = TRUE),
@@ -2686,6 +3507,17 @@ output$statistical_significance_square <- renderUI({
         -dplyr::contains("sample", ignore.case = TRUE),
         -dplyr::contains("accession", ignore.case = TRUE)
       )
+    for (nm in names(df)) {
+      if (nm != "timepoint") {
+        col <- df[[nm]]
+        if (is.character(col) && length(unique(col)) <= 50) {
+          df[[nm]] <- factor(col)
+        } else if (is.logical(col)) {
+          df[[nm]] <- factor(col)
+        }
+      }
+    }
+    df
   })
 
   run_fisher_clicked <- reactiveVal(FALSE)
@@ -2698,7 +3530,8 @@ output$statistical_significance_square <- renderUI({
   # UI for selecting first categorical variable
   output$cat1_ui <- renderUI({
     df <- fisher_data()
-    cat_vars <- names(df)[sapply(df, function(col) is.character(col) || is.factor(col))]
+    cat_vars <- names(df)[sapply(df, function(col)
+      is.character(col) || is.factor(col) || is.logical(col))]
     
     selectInput("cat1", "Select first categorical variable:",
                 choices = c("Select variable" = "", cat_vars),
@@ -2708,7 +3541,8 @@ output$statistical_significance_square <- renderUI({
   # UI for selecting second categorical variable, excluding the first
   output$cat2_ui <- renderUI({
     df <- fisher_data()
-    cat_vars <- names(df)[sapply(df, function(col) is.character(col) || is.factor(col))]
+    cat_vars <- names(df)[sapply(df, function(col)
+      is.character(col) || is.factor(col) || is.logical(col))]
     
     selectInput("cat2", "Select second categorical variable:",
                 choices = c("Select variable" = "", cat_vars),
@@ -2742,10 +3576,28 @@ output$statistical_significance_square <- renderUI({
                       label = "Select second categorical variable:", selected = "")
   })
 
+
+  
   reset_outputs <- function() {
-    output$fisher_chisq_result <- renderPrint({ "The server is ready." })
-    output$posthoc_result_fisher <- renderPrint({ "The server is ready." })
+    msg_test <- div(
+      style = "
+      background-color: #f5f5f5; color: #555; font-weight: bold; font-size: 1em;
+      border-radius: 8px; padding: 10px; margin: 5px 0;
+      text-align: left;",
+      "Awaiting test results."
+    )
+    msg_posthoc <- div(
+      style = "
+      background-color: #f5f5f5; color: #555; font-weight: bold; font-size: 1em;
+      border-radius: 8px; padding: 10px; margin: 5px 0;
+      text-align: left;",
+      "Awaiting post-hoc pairwise comparison results."
+    )
+    output$fisher_chisq_result <- renderUI({ msg_test })
+    output$posthoc_result_fisher <- renderUI({ msg_posthoc })
   }
+  
+  
   
   observeEvent(input$cat1, {
     df <- fisher_data()
@@ -2813,109 +3665,111 @@ output$statistical_significance_square <- renderUI({
     }
 
 
-    output$fisher_chisq_result <- renderPrint({
+    output$fisher_chisq_result <- renderUI({
+      fisher_computational_error(FALSE)
       df <- fisher_data()
+      # Filter by timepoint if selected
       if (!is.null(input$fisher_timepoint) && input$fisher_timepoint != "" && "timepoint" %in% names(df)) {
         df <- dplyr::filter(df, timepoint == input$fisher_timepoint)
       }
       
+      # No data after filtering
       if (nrow(df) == 0) {
-        return(invisible(NULL)) # Prevent errors if no data after filtering
+        return(invisible(NULL))
       }
+      
       tab <- df %>%
         dplyr::select(.data[[input$cat1]], .data[[input$cat2]]) %>%
         tidyr::drop_na() %>%
         table()
-      # Special check for one-group-per-variable (degenerate case)
+      
+      # Special check for degenerate case
       if (any(dim(tab) < 2)) {
+        invalid_fisher_square(TRUE)
         shiny::showModal(modalDialog(
-          title = div(icon("exclamation-triangle", lib = "font-awesome"), "Invalid data for Fisher's Exact Test"),
+          title = div(icon("exclamation-triangle", lib = "font-awesome"), "Invalid data"),
           div(
             style = "background-color:#f8d7da; color:#721c24; padding:14px; border:1px solid #f5c6cb; border-radius:5px; margin-bottom:12px;",
             icon("exclamation-circle", lib = "font-awesome"),
             strong(" Error: "),
-            "Fisher's Exact Test requires at least two groups for each variable. Your data contains only one group in one or both variables. ",
-            "Please provide a dataset with at least two distinct groups for each variable to use Fisher's Exact Test or Chi-square."
+            "Chi-square and Fisher's Exact Tests requires at least two groups for each variable. Your data contains only one group in one or both variables. Please provide a dataset with at least two distinct groups for each variable to use Fisher's Exact Test or Chi-square."
           ),
           easyClose = TRUE,
           footer = NULL
         ))
-        cat("Cannot run test: both variables must have at least two groups each.")
+        # Also clear other outputs
+        #output$fisher_chisq_square <- renderUI({ NULL })
+        output$posthoc_result_fisher <- renderUI({ invisible(NULL) })
         return(invisible(NULL))
+      } else {
+        invalid_fisher_square(FALSE)
       }
-      if (any(dim(tab) < 2)) {
-        shiny::showModal(
-          modalDialog(
-            title = div(icon("exclamation-triangle", lib = "font-awesome"), "Invalid data for Fisher's Exact Test or Chi-square"),
-            div(
-              style = "background-color:#f8d7da; color:#721c24; padding:14px; border:1px solid #f5c6cb; border-radius:5px; margin-bottom:12px;",
-              icon("exclamation-circle", lib = "font-awesome"),
-              strong(" Error: "),
-              "Test requires at least two groups for both variables. Your data contains only one group in one or both variables. ",
-              "Please provide a dataset with at least two distinct groups for each variable."
-            ),
-            easyClose = TRUE,
-            footer = NULL
-          )
-        )
-        # ALSO CLEAR OTHER OUTPUTS
-        output$fisher_chisq_square <- renderUI({ NULL })
-        output$posthoc_result_fisher <- renderPrint({ NULL })
-        return(invisible(NULL))
-      }
-
+      
+      
+      # Now do the test logic
+      warn_msg <- NULL
+      table_output <- NULL
+      
       tryCatch({
         if (input$test_type_fisher == "chisq") {
           test <- chisq.test(tab)
           exp_counts <- test$expected
           
           # Store warning if expected count < 5
-          warn_msg <- NULL
-          if (any(exp_counts < 5)) {
-            warn_msg <<- div(
-              style = "background-color:#fff3cd; color:#856404; padding:14px; border:1px solid #ffeeba; border-radius:5px; margin-bottom:12px;",
-              icon("exclamation-triangle", lib = "font-awesome"),
-              strong(" Warning: "),
-              "Some expected cell counts are less than 5. Consider using Fisher's exact test instead of Chi-square."
-            )
-          } else {
-            warn_msg <<- NULL
-          }
+          # if (any(exp_counts < 5)) {
+          #   warn_msg <- div(
+          #     style = "background-color:#fff3cd; color:#856404; padding:14px; border:1px solid #ffeeba; border-radius:5px; margin-bottom:12px;",
+          #     icon("exclamation-triangle", lib = "font-awesome"),
+          #     strong(" Warning: "),
+          #     "Some expected cell counts are less than 5. Consider using Fisher's exact test instead of Chi-square."
+          #   )
+          # }
           
-          out <- tryCatch({
-            capture.output(knitr::kable(rstatix::chisq_test(tab), align = "c", format = "simple"))
-          }, error = function(e) NULL)
-          
-          if (!is.null(out)) cat(out, sep = "\n")
+          table_output <- rstatix::chisq_test(tab) %>%
+            knitr::kable(align = "c", format = "html") %>%
+            kableExtra::kable_styling(
+              bootstrap_options = c("hover", "condensed", "bordered"),
+              position = "center", full_width = TRUE)
           
         } else {
           result <- tryCatch({
             rstatix::fisher_test(tab, detailed = TRUE)
           }, error = function(e) {
-            # Show notification, but do not print error to UI
-            if (grepl("integer overflow", e$message, ignore.case = TRUE)) {
-              showNotification(strong("Fisher's Exact Test failed due to large table. Use Chi-squared test instead."), type = "error", duration = 6)
+            # THIS IS THE CRITICAL PART FOR FEXACT error 6
+            if (grepl("FEXACT error 6", e$message, fixed = TRUE)) {
+              fisher_computational_error(TRUE)
+              return(
+                div(
+                  style = "background-color:#f8d7da; color:#721c24; padding:14px; border:1px solid #f5c6cb; border-radius:5px; margin-bottom:12px; margin-top:10px;",
+                  icon("exclamation-triangle", lib = "font-awesome"),
+                  strong(" Fisher's Exact Test failed: "),
+                  "The table is too large or complex for Fisher's Exact Test. Please use the", strong("Chi-squared test"), "instead."
+                )
+              )
             } else {
-              showNotification(paste("Error:", e$message), type = "error")
+              return(invisible(NULL))
             }
-            return(NULL) # prevent output
           })
-          
-          if (!is.null(result)) {
-            out <- tryCatch({
-              capture.output(knitr::kable(result, align = "c", format = "simple"))
-            }, error = function(e) NULL)
-            
-            if (!is.null(out)) cat(out, sep = "\n")
-          } else {
-            return(invisible(NULL)) # this line ensures red errors are not shown if result is NULL
-          }
+          if (inherits(result, "shiny.tag")) return(result)
+          table_output <- result %>%
+            knitr::kable(align = "c", format = "html") %>%
+            kableExtra::kable_styling(
+              bootstrap_options = c("hover", "condensed", "bordered"),
+              position = "center", full_width = TRUE)
         }
+        
+        
+        # Combine warning (if any) with table output
+        tagList(
+          warn_msg,
+          div(style = "margin-top:24px;", HTML(table_output))
+        )
       }, error = function(e) {
         # Also suppress any red error in UI here
         return(invisible(NULL))
       })
     })
+    
 
 
 
@@ -2952,6 +3806,7 @@ output$statistical_significance_square <- renderUI({
       table()
 
     output$posthoc_result_fisher <- renderPrint({
+      if (fisher_computational_error()) return(invisible(NULL))
       if (!run_fisher_clicked()) return(NULL)
       tab <- df %>%
         dplyr::select(.data[[input$cat1]], .data[[input$cat2]]) %>%
@@ -2962,10 +3817,12 @@ output$statistical_significance_square <- renderUI({
       count1 <- nlevels(droplevels(df[[input$cat1]]))
       count2 <- nlevels(droplevels(df[[input$cat2]]))
       more_than_2 <- (count1 > 2 | count2 > 2)
-      pval <- if (input$test_type_fisher == "chisq") {
-        rstatix::chisq_test(tab)$p[1]
+      
+      pval <- NA_real_
+      if (input$test_type_fisher == "chisq") {
+        pval <- tryCatch(rstatix::chisq_test(tab)$p[1], error = function(e) NA_real_)
       } else {
-        rstatix::fisher_test(tab)$p[1]
+        pval <- tryCatch(rstatix::fisher_test(tab)$p[1], error = function(e) NA_real_)
       }
 
       if (!more_than_2) {
@@ -2973,23 +3830,34 @@ output$statistical_significance_square <- renderUI({
       } else if (is.na(pval) || pval >= 0.05) {
         return(invisible(NULL)) # Also show nothing here, since UI already tells user why
       } else if (input$posthoc_method_fisher == "" || is.null(input$posthoc_method_fisher)) {
-        cat("Select a p-value adjustment method to view post hoc pairwise comparisons.")
+        return(
+          div(style = "background-color: #eaf4fb; color: #215273; font-weight: bold;
+        font-size: 1 em; border: 1px solid #b5d6ea; border-radius: 7px;
+        padding: 7px 8px; margin: -10px 0 6px 0; text-align: left;",
+            " Please select a p-value adjustment method to view post hoc pairwise comparisons.")
+        )
       } else {
         # test is significant, more than 2 groups, and method is selected
         p_adj_method <- input$posthoc_method_fisher
         if (input$test_type_fisher == "chisq") {
           res <- tryCatch(
-            rstatix::pairwise_prop_test(tab, p.adjust.method = p_adj_method),
+            rstatix::pairwise_prop_test(tab, p.adjust.method = p_adj_method) %>% 
+              dplyr::mutate(method = "Pairwise Proportion Test"),
             error = function(e) NULL
           )
         } else {
           res <- tryCatch(
-            rstatix::pairwise_fisher_test(tab, p.adjust.method = p_adj_method),
+            rstatix::pairwise_fisher_test(tab, p.adjust.method = p_adj_method) %>% 
+              dplyr::mutate(method = "Pairwise Fisher’s Exact Test"),
             error = function(e) NULL
           )
         }
         if (!is.null(res) && nrow(res) > 0) {
-          knitr::kable(res, align = "c", "simple")
+          tbl_pos_fish <- knitr::kable(res, align = "c", format = "html") %>% 
+            kableExtra::kable_styling(
+              bootstrap_options = c("hover", "condensed", "bordered"),
+              position = "center", full_width = TRUE)
+          HTML(tbl_pos_fish)
         } else {
           cat("Could not compute pairwise post hoc test. Check your data for missing values or errors.")
         }
@@ -2999,6 +3867,7 @@ output$statistical_significance_square <- renderUI({
 
   
     output$posthoc_method_ui <- renderUI({
+      if (fisher_computational_error()) return(invisible(NULL))
       req(run_fisher_clicked(), input$cat1, input$cat2, input$test_type_fisher)
       df <- fisher_data()
       if (!is.null(input$fisher_timepoint) && input$fisher_timepoint != "" && "timepoint" %in% names(df)) {
@@ -3025,8 +3894,8 @@ output$statistical_significance_square <- renderUI({
         return(NULL)   # Do not show anything
       } else if (is.na(pval) || pval >= 0.05) {
         return(tags$div(
-          style = "background-color:#fff3cd; color:#856404; padding:14px; border:1px solid #ffeeba; border-radius:5px; margin-bottom:12px;",
-          strong("Post hoc pairwise comparisons are only available if the test was significant.")
+          style = "background-color:#fff3cd; color:#856404; padding:10px; border:1px solid #ffeeba; border-radius:5px; margin-bottom:12px; margin-top:-15px;",
+          strong("Post hoc pairwise comparisons are only available if the test was statistically significant.")
         ))
       } else {
         return(selectInput("posthoc_method_fisher", strong("Choose p-value adjustment method:"),
@@ -3041,10 +3910,6 @@ output$statistical_significance_square <- renderUI({
         ))
       }
     })
-    
-    
-    
-
   })
 
   # Reset the plot when categorical variables change
@@ -3062,13 +3927,14 @@ output$statistical_significance_square <- renderUI({
         "background-color: ", if (pval < 0.05) "green" else "#B20D00",
         "; color: white; padding: 10px; border-radius: 5px; margin-top: 10px;"
       ),
-      strong(if (pval < 0.05) "Statistically Significant Difference" else "No Statistically Significant Difference")
+      strong(if (pval < 0.05) "Statistically significant difference in the distribution between groups." else "No statistically significant difference in the distribution between groups.")
     )
   }
 
   stat_square_fisher <- function(tab) {
     if (any(dim(tab) < 2)) return(NULL)
-    res <- rstatix::fisher_test(tab)
+    res <- tryCatch(rstatix::fisher_test(tab), error = function(e) NULL)
+    if (is.null(res)) return(NULL)
     pval <- res$p[1]
     if (is.na(pval)) return(NULL)
     div(
@@ -3076,13 +3942,12 @@ output$statistical_significance_square <- renderUI({
         "background-color: ", if (pval < 0.05) "green" else "#B20D00",
         "; color: white; padding: 10px; border-radius: 5px; margin-top: 10px;"
       ),
-      strong(if (pval < 0.05) "Statistically Significant Difference" else "No Statistically Significant Difference")
+      strong(if (pval < 0.05) "Statistically significant difference in the distribution between groups." else "No statistically significant difference in the distribution between groups.")
     )
   }
 
   output$fisher_chisq_square <- renderUI({
-    if (!run_fisher_clicked()) return(NULL)
-
+    if (invalid_fisher_square()) return(NULL)
     if (!run_fisher_clicked()) return(NULL)
     req(fisher_data(), input$cat1, input$cat2, input$test_type_fisher)
     df <- fisher_data()
@@ -3093,11 +3958,22 @@ output$statistical_significance_square <- renderUI({
     
     df[[input$cat1]] <- as.factor(df[[input$cat1]])
     df[[input$cat2]] <- as.factor(df[[input$cat2]])
-    tab <- df %>%
-      dplyr::select(.data[[input$cat1]], .data[[input$cat2]]) %>%
-      tidyr::drop_na() %>%
-      table()
-    if (any(dim(tab) < 2)) return(NULL)
+    tab <- tryCatch({
+      df %>%
+        dplyr::select(.data[[input$cat1]], .data[[input$cat2]]) %>%
+        tidyr::drop_na() %>%
+        table()
+    }, error = function(e) NULL)
+    
+    # Always show the square, even if tab is NULL or invalid
+    if (is.null(tab) || any(dim(tab) < 2)) {
+      return(
+        div(
+          style = "background-color: #B20D00; color: white; padding: 10px; border-radius: 5px; margin-top: 10px;",
+          strong("No Statistically Significant Difference")
+        )
+      )
+    }
     
     if (input$test_type_fisher == "chisq") {
       stat_square_chisq(tab)
@@ -3111,6 +3987,7 @@ output$statistical_significance_square <- renderUI({
   
  ## plotting for Fisher or Chi square
   observeEvent(input$plot_fisher, {
+    plot_fisher_clicked(TRUE)
     if (is.null(input$file_fisher)) {
       showNotification(strong("Please upload a data file."), type = "error")
       return()
@@ -3134,6 +4011,7 @@ output$statistical_significance_square <- renderUI({
       dplyr::select(.data[[input$cat1]], .data[[input$cat2]]) %>%
       dplyr::group_by(.data[[input$cat1]], .data[[input$cat2]]) %>%
       dplyr::summarise(n = dplyr::n(), .groups = "drop") %>%
+      tidyr::drop_na() %>% 
       dplyr::group_by(.data[[input$cat1]]) %>%
       dplyr::mutate(freq = n / sum(n) * 100) %>%
       dplyr::ungroup()
@@ -3164,12 +4042,24 @@ output$statistical_significance_square <- renderUI({
     })
     # Show download button after plot is made
     shinyjs::show("download_fisher_plot")
+    
+    output$dynamic_download_fisher <- renderUI({
+      downloadButton("download_fisher_plot", "Download Plot")
+    })
   })
 
+  output$dynamic_fisher_plot <- renderUI({
+    if (!plot_fisher_clicked()) return(NULL)
+    plotOutput("fisher_plot")
+  })
+  
 # If the user changes variables or uploads a new file, hide the button again
+  plot_fisher_clicked <- reactiveVal(FALSE)
+  plot_fisher_clicked(FALSE)
   observeEvent(list(input$file_fisher, input$cat1, input$cat2), {
     shinyjs::hide("download_fisher_plot")
     output$fisher_plot <- renderPlot({ NULL }) # optional: clear plot
+    output$dynamic_download_fisher <- renderUI({ NULL })
   })
   
   
@@ -3198,7 +4088,7 @@ output$statistical_significance_square <- renderUI({
       n_fill <- length(unique(plot_df[[input$cat2]]))
 
       # Width grows with x categories, legend width grows with fill levels
-      plot_width <- max(6, n_cats * 0.5 + ceiling(n_fill / 10) * 1.5)
+      plot_width <- max(4, n_cats * 0.5 + ceiling(n_fill / 10) * 1.5)
       plot_height <- max(4, n_fill * 0.2 + 4)
 
       p <- ggplot2::ggplot(
@@ -3212,6 +4102,8 @@ output$statistical_significance_square <- renderUI({
         ggplot2::theme(
           axis.text.x = ggplot2::element_text(size = 12, angle = 45, vjust = 1, hjust = 1, colour = "black"),
           axis.text.y = ggplot2::element_text(size = 12, colour = "black"),
+          axis.title.y = ggplot2::element_text(size = 14, colour = "black", face = "bold"),
+          legend.title = ggplot2::element_text(face = "bold", size = 14),
           legend.text = ggplot2::element_text(size = 12)
         )
       if (n_fill <= 8) {
@@ -3223,6 +4115,7 @@ output$statistical_significance_square <- renderUI({
   )
 
   output$chi_fisher_warning <- renderUI({
+    if (fisher_computational_error()) return(NULL)
     req(fisher_data(), input$cat1, input$cat2)
     if (input$cat1 == "" || input$cat2 == "") return(NULL)
     
@@ -3249,7 +4142,11 @@ output$statistical_significance_square <- renderUI({
           style = "background-color:#fff3cd; color:#856404; padding:14px; border:1px solid #ffeeba; border-radius:5px; margin-bottom:12px;",
           icon("exclamation-triangle", lib = "font-awesome"),
           strong("Warning: "),
-          "Some expected frequencies < 5. Chi-squared approximation may be invalid. Consider using Fisher's Exact Test instead."
+          tags$br(),
+          tags$b("Some expected frequencies < 5."),
+          "Chi-squared approximation may be invalid. Consider using ",
+          tags$b("Fisher\'s Exact Test"),
+          " instead."
         ))
       }
     }
@@ -3267,6 +4164,9 @@ output$statistical_significance_square <- renderUI({
 ############################################################################################################
 
 # Correlation analysis
+  
+  cor_assumptions_checked <- reactiveVal(FALSE)
+  last_feature_count <- reactiveVal(NULL)
 
   observe({
     session$onFlushed(function() {
@@ -3291,6 +4191,39 @@ output$statistical_significance_square <- renderUI({
     if (is.null(input$cor_method) || input$cor_method == "") {
       showNotification(strong("Please choose the test."), type = "error")
       return()
+    }
+    
+    # BLOCK: Too many features selected after prevalence filtering
+    n_filtered <- ncol(cor_selected_data())
+    previous_count <- last_feature_count()
+    
+    if (n_filtered > 100) {
+      showNotification(
+        strong(
+          paste0(
+            "After removing features with zero variance or all missing values, ",
+            "you have ", n_filtered, " features available for analysis. ",
+            "Please reduce to 100 or fewer using the prevalence filter or manual selection before running the analysis."
+          )
+        ),
+        type = "error", duration = 10
+      )
+      last_feature_count(n_filtered)
+      return()
+    } else {
+      # Only show this message if the previous run had >100 and now is <=100
+      if (!is.null(previous_count) && previous_count > 100 && n_filtered <= 100) {
+        showNotification(
+          strong(
+            paste0(
+              "Now you have ", n_filtered, " features. ",
+              "You can proceed to check the correlation."
+            )
+          ),
+          type = "message", duration = 6
+        )
+      }
+      last_feature_count(n_filtered)
     }
     
     updateTabsetPanel(session, inputId = "cor_tabs", selected = "Test Results")
@@ -3325,11 +4258,10 @@ output$statistical_significance_square <- renderUI({
           strong(" Warning:"),
           tags$ul(
             tags$li(
-              paste0("Your data has ", n_feat, " features. High feature counts and sparse data (many zeros) can make correlation analysis slow or fail.")
+              paste0("Your data has ", n_feat, " features. Correlation analysis with high-dimensional, sparse data (many zeros) may yield statistically unreliable results.")
             ),
-            tags$li("Use the prevalence slider to filter out low-prevalence features and reduce the feature count to 100 or fewer before clicking 'Run Correlation'."),
-            tags$li("Only the top 100 features will be included."),
-            tags$li("Downloading the full correlation matrix/table (100 features) may take 10–30 seconds. Please wait after clicking the download button.")
+            tags$li("Please manually select features or use", strong("'Select All'"), "and adjust the", strong("prevalence slider."), "Click,", strong("'Run Correlation'"), "to see if you meet the feature limit or need to filter further."),
+            tags$li("Downloading the full correlation matrix/table (100 features) may take up to 30 seconds. Please wait after clicking the download button.")
           )
         )
       })
@@ -3363,7 +4295,7 @@ output$statistical_significance_square <- renderUI({
       choices = num_cols,
       selected = num_cols[seq_len(min(2, length(num_cols)))],
       multiple = TRUE,
-      options = list(maxItems = 100)
+      options = list(maxItems = Inf, server = T)
     )
   })
 
@@ -3391,13 +4323,20 @@ output$statistical_significance_square <- renderUI({
   cor_selected_data <- reactive({
     req(cor_data(), input$cor_features)
     df <- cor_data()
+    
     # Remove sample ID columns if present
     possible_id <- names(df)[tolower(names(df)) %in% c("sample_id", "id", "subject_id")]
     if (length(possible_id) > 0) {
       df <- df %>% dplyr::select(-dplyr::all_of(possible_id))
     }
+    
+    # Keep only features present in current df
+    valid_feats <- intersect(input$cor_features, names(df))
+    if (length(valid_feats) == 0) return(NULL)
+    df <- df %>% dplyr::select(dplyr::all_of(valid_feats))
+    
     # Subset to selected features
-    df <- df %>% dplyr::select(dplyr::all_of(input$cor_features))
+    #df <- df %>% dplyr::select(dplyr::all_of(input$cor_features))
 
     # Optional prevalence filter
     if (!is.null(input$cor_prev_filter) && input$cor_prev_filter > 0) {
@@ -3409,6 +4348,22 @@ output$statistical_significance_square <- renderUI({
     df <- df[, sapply(df, function(x) !all(is.na(x)) && stats::sd(x, na.rm = TRUE) > 0), drop = FALSE]
     df
   })
+  
+  
+  
+  # Reactive: filtered feature count
+  cor_n_features <- reactive({
+    df <- cor_selected_data()
+    if (is.null(df)) return(0)
+    ncol(df)
+  })
+  
+  # For use in conditionalPanel
+  output$cor_too_many_features <- reactive({
+    cor_n_features() > 100
+  })
+  outputOptions(output, "cor_too_many_features", suspendWhenHidden = FALSE)
+  
 
   # --- CLR transformation (optional) ---
   cor_clr_data <- reactive({
@@ -3551,10 +4506,28 @@ output$statistical_significance_square <- renderUI({
     # --- Results UI
     output$cor_assumption_content <- renderUI({
       req(input$cor_features)
+      
+      # Show nothing if method is not selected
+      if (is.null(input$cor_method) || input$cor_method == "") return(NULL)
+      
+      # Only apply logic below for Pearson
       if (input$cor_method != "pearson") {
-        return(div(style = "color: #333; background-color:#f5f5f5; margin-top:12px;",
-                   strong("Assumption checks only apply for Pearson correlation.")))
+        # Show message ONLY if user tried to check assumptions (button clicked)
+        if (cor_assumptions_checked()) {
+          return(div(style = "color: #333; background-color:#f5f5f5; margin-top:12px;",
+                     strong("Assumption checks only apply for Pearson correlation.")))
+        }
+        return(NULL)
       }
+      
+
+      # Only for Pearson: if not exactly two features, show this message
+      if (length(input$cor_features) != 2) {
+        return(div(style = "background-color:#f5f5f5; color:#333; padding:18px; border-radius:8px; margin-top:10px;",
+                   icon("exclamation-circle", lib = "font-awesome"),
+                   strong("Select exactly two features to check assumptions, or click 'Run Correlation' for the full matrix.")))
+      }
+      
       # Defensive: If any assumption objects are NULL, tell the user to check assumptions.
       if (
         is.null(shap1_val()) || is.null(shap2_val()) || is.null(mvn_p_val()) ||
@@ -3565,13 +4538,14 @@ output$statistical_significance_square <- renderUI({
                    strong("Select exactly two features to check assumptions, or click 'Run Correlation' for the full matrix.")
         ))
       }
+      
       tagList(
         #h4("Assumption Checks"),
 
         # 1. Linearity
         div(
           br(),
-          h5(HTML("1. Linearity (scatterplot) <i
+          h5(HTML("<b>1. Linearity (scatterplot)</b> <i
     class='fa-solid fa-circle-info'
     data-bs-toggle='tooltip'
     data-bs-placement='right'
@@ -3594,8 +4568,8 @@ output$statistical_significance_square <- renderUI({
 
 
         # 2. Normality
-        h5("2. Shapiro-Wilk Normality"),
-        verbatimTextOutput("cor_shapiro_text"),
+        h5(strong("2. Shapiro-Wilk Normality")),
+        uiOutput("cor_shapiro_text"),
         div(
           style = paste0("background-color:",
                          if (!is.null(shap1_val()) && !is.null(shap2_val()) && shap1_val()$p.value > 0.05 &&
@@ -3612,8 +4586,8 @@ output$statistical_significance_square <- renderUI({
 
 
         # 3. Bivariate normality
-        h5("3. Bivariate Normality (Henze-Wagner test)"),
-        verbatimTextOutput("cor_mvn_text"),
+        h5(strong("3. Bivariate Normality (Henze-Wagner test)")),
+        uiOutput("cor_mvn_text"),
         div(
           style = paste0(
             "background-color:", if (!is.na(mvn_p) && mvn_ok) "green" else "#B20D00",
@@ -3637,8 +4611,8 @@ output$statistical_significance_square <- renderUI({
 
 
         # 4. Outliers
-        h5("4. Outlier Test"),
-        verbatimTextOutput("cor_outlier_text"),
+        h5(strong("4. Outlier Test")),
+        uiOutput("cor_outlier_text"),
         div(
           style = paste0(
             "background-color:",
@@ -3678,11 +4652,11 @@ output$statistical_significance_square <- renderUI({
 
 
         # 5. Homoscedasticity
-        h5("5. Homoscedasticity"),
-        verbatimTextOutput("cor_het_text"),
+        h5(strong("5. Homoscedasticity")),
+        uiOutput("cor_het_text"),
         uiOutput("cor_het_box"),
         br(),
-        h4("Assumption Check Summary"),
+        h4(strong("Assumption Check Summary")),
         uiOutput("cor_assumption_summary")
         )
       })
@@ -3737,7 +4711,8 @@ output$statistical_significance_square <- renderUI({
 
     # Outputs for assumption test details
     output$cor_linearity_plot <- renderPlot({ scatter_plot_val() })
-    output$cor_shapiro_text <- renderPrint({
+    
+    output$cor_shapiro_text <- renderUI({
       tbl <- data.frame(
         Variable = c(input$cor_features[1], input$cor_features[2]),
         `Shapiro-Wilk p` = c(
@@ -3745,28 +4720,71 @@ output$statistical_significance_square <- renderUI({
           if (!is.null(shap2_val())) signif(shap2_val()$p.value, 3) else NA
         )
       )
-      print(knitr::kable(tbl, align = "c", format = "simple"))
-    })
-
-
-    # Bivariate
-    output$cor_mvn_text <- renderPrint({
-      val <- mvn_p_val()
-      if (!is.null(val) && !is.na(val)) {
-        cat(sprintf("HZ test p = %.4g", val))
-      } else {
-        cat("Test not run.")
-      }
+      
+      tbl_html <- knitr::kable(tbl, align = "c", format = "html") %>% 
+        kableExtra::kable_styling(
+          bootstrap_options = c("hover", "condensed", "bordered"),
+          position = "center", full_width = TRUE
+        ) %>% 
+        kableExtra::scroll_box(width = "100%", height = "100%")
+      
+      div(style = "margin-top: 15px;", HTML(tbl_html))
     })
     
 
 
-    output$cor_outlier_text <- renderPrint({
-      if (!is.null(car_outliers)) print(car_outliers) else "No outliers detected or not applicable."
+    # Bivariate
+    output$cor_mvn_text <- renderUI({
+      val <- mvn_p_val()
+      if (!is.null(val) && !is.na(val)) {
+        div(
+          style = "background-color:#F5F5F5; color:black; font-size:1 em;
+               border:1.5px solid #B3B3B3; border-radius:8px; padding:14px 18px; margin-bottom:8px;",
+          sprintf("HZ test p-value: %.4g", val)
+        )
+      } else {
+        div(
+          style = "background-color:#f5f5f5; color:black; font-size:1 em;
+               border:1.5px solid #B3B3B3; border-radius:8px; padding:14px 18px; margin-bottom:8px;",
+          "Multivariate normality test not run."
+        )
+      }
     })
-    output$cor_het_text <- renderPrint({
-      if (!is.null(perf_het)) print(perf_het) else "Test failed."
+    
+    
+
+    output$cor_outlier_text <- renderUI({
+      if (!is.null(car_outliers)) {
+        div(
+          style = "background-color:#F5F5F5; color:black; font-size:1em;
+               border:1.5px solid #B3B3B3; border-radius:8px; padding:14px 18px; margin-bottom:8px; white-space:pre-wrap;",
+          paste(capture.output(print(car_outliers)), collapse = "\n")
+        )
+      } else {
+        div(
+          style = "background-color:#F5F5F5; color:black; font-size:1em;
+               border:1.5px solid #B3B3B3; border-radius:8px; padding:14px 18px; margin-bottom:8px;",
+          "No outliers detected or not applicable."
+        )
+      }
     })
+    
+    output$cor_het_text <- renderUI({
+      if (!is.null(perf_het)) {
+        div(
+          style = "background-color:#F5F5F5; color:black; font-size:1em;
+               border:1.5px solid #B3B3B3; border-radius:8px; padding:14px 18px; margin-bottom:8px; white-space:pre-wrap;",
+          paste(capture.output(print(perf_het)), collapse = "\n")
+        )
+      } else {
+        div(
+          style = "background-color:#F5F5F5; color:black; font-size:1em;
+               border:1.5px solid #B3B3B3; border-radius:8px; padding:14px 18px; margin-bottom:8px;",
+          "Test failed."
+        )
+      }
+    })
+    
 
   })
 
@@ -3829,11 +4847,16 @@ output$statistical_significance_square <- renderUI({
 
   make_scatter_plot <- function(v1, v2, var1_name, var2_name) {
     ggplot2::ggplot(data.frame(x = v1, y = v2), aes(x, y)) +
-      geom_point(size = 2, alpha = 0.7) +
-      geom_smooth(method = "lm", se = FALSE, color = "red") +
+      geom_point(size = 2, color = "#4B96CB") +
+      geom_smooth(method = "lm", se = FALSE, color = "#F57B13", linetype = 5, linewidth = 1) +
       theme_bw() +
       labs(title = "Scatterplot with Regression Line",
-           x = var1_name, y = var2_name)
+           x = var1_name, y = var2_name) + 
+      theme(axis.text.x = element_text(size = 12, colour = "black")) + 
+      theme(axis.title.x = element_text(size = 14, colour = "black", face = "bold")) + 
+      theme(axis.text.y = element_text(size = 12, colour = "black")) + 
+      theme(axis.title.y = element_text(size = 14, colour = "black", face = "bold")) + 
+      theme(plot.title = element_text(size = 17))
   }
 
  # Download the Scatter plot
@@ -3844,7 +4867,7 @@ output$statistical_significance_square <- renderUI({
       v1 <- df[[input$cor_features[1]]]
       v2 <- df[[input$cor_features[2]]]
       p <- make_scatter_plot(v1, v2, input$cor_features[1], input$cor_features[2])
-      ggsave(file, plot = p, width = 7, height = 5, dpi = 600)
+      ggsave(file, plot = p, width = 6, height = 5, dpi = 600)
     }
   )
 
@@ -3890,11 +4913,18 @@ output$statistical_significance_square <- renderUI({
 
   # Show correlation table if ≤10 features
   output$cor_table_ui <- renderUI({
+    if (cor_n_features() > 100) return(NULL)
     req(input$cor_run)
     valid_methods <- c("pearson", "spearman", "kendall", "biweight")
     if (!(input$cor_method %in% valid_methods)) return(NULL)
 
     n_feat <- length(input$cor_features)
+    
+    # Only if actual correlation table will be displayed:
+    tagList(
+      uiOutput("cor_table_title"),  # Show title/tooltip ONLY with the table
+      DT::dataTableOutput("cor_table")
+    )
 
     # ----- HANDLE PEARSON WITH EXACTLY 2 FEATURES -----
     if (input$cor_method == "pearson" && n_feat == 2) {
@@ -3935,7 +4965,7 @@ output$statistical_significance_square <- renderUI({
       if (!pass_all) {
         return(
           div(style = "background-color: #e0e0e0; color: #222; padding: 14px; border-radius: 5px; font-size: 1.1em; margin-top: 10px;",
-              strong("This test is not suitable for your data. Assumptions for this test are not met."))
+              strong("This test is not suitable for your data as its assumptions are not met. Please choose Spearman, Kendall, or bicor correlation instead"))
         )
       }
     }
@@ -3951,13 +4981,13 @@ output$statistical_significance_square <- renderUI({
       )
     }
 
-    table_output <- if (n_feat <= 10) {
+    table_output <- if (n_feat <= 20) {
       DT::dataTableOutput("cor_table")
     } else {
       div(
         style = "background-color:#fff3cd; color:#856404; padding:14px; border:1px solid #ffeeba; border-radius:5px; margin-top:8px; margin-bottom:12px;",
         icon("exclamation-triangle", lib = "font-awesome"),
-        strong("You selected more than 10 features. View full results by downloading tables below.")
+        strong("You selected more than 20 features. View full results by downloading tables below.")
       )
       
     }
@@ -3965,11 +4995,80 @@ output$statistical_significance_square <- renderUI({
     tagList(warn_msg, table_output)
   })
 
-
+  # Correlation interpretation
+  output$cor_table_title <- renderUI({
+    # Only show if correlation table is actually produced
+    if (cor_n_features() > 100) return(NULL)
+    if (is.null(input$cor_run) || input$cor_run == 0) return(NULL)
+    valid_methods <- c("pearson", "spearman", "kendall", "biweight")
+    if (!(input$cor_method %in% valid_methods)) return(NULL)
+    if (length(input$cor_features) < 2) return(NULL)
+    
+    # Check for Pearson + 2 vars: require assumptions passed
+    if (input$cor_method == "pearson" && length(input$cor_features) == 2) {
+      assumptions_tested <- !is.null(shap1_val()) &&
+        !is.null(shap2_val()) &&
+        !is.null(mvn_p_val()) && !is.null(mvn_ok_val()) &&
+        !is.null(car_outliers_val()) && !is.null(perf_het_val())
+      if (!assumptions_tested) return(NULL)
+      
+      # Must also pass all assumptions
+      pass_linearity <- !is.null(scatter_plot_val())
+      pass_normality <- safe_shapiro_pval(shap1_val()) && safe_shapiro_pval(shap2_val()) &&
+        shap1_val()$p.value > 0.05 && shap2_val()$p.value > 0.05
+      pass_bivnorm <- !is.na(mvn_p_val()) && isTRUE(mvn_ok_val())
+      pass_outliers <- is.null(car_outliers_val()) ||
+        (inherits(car_outliers_val(), "outlierTest")) ||
+        (is.data.frame(car_outliers_val()) &&
+           "Bonferroni p" %in% colnames(car_outliers_val()) &&
+           (all(is.na(car_outliers_val()[,"Bonferroni p"])) ||
+              all(car_outliers_val()[,"Bonferroni p"] > 0.05)))
+      pass_het <- {
+        ph <- perf_het_val()
+        pval <- NULL
+        if (!is.null(ph)) {
+          if (is.list(ph) && "p.value" %in% names(ph)) pval <- ph[["p.value"]]
+          else if (!is.null(names(ph)) && "p.value" %in% names(ph)) pval <- ph[["p.value"]]
+          else if (is.numeric(ph) && length(ph) == 1) pval <- ph
+        }
+        !is.null(pval) && all(pval > 0.05)
+      }
+      pass_all <- all(c(pass_linearity, pass_normality, pass_bivnorm, pass_outliers, pass_het))
+      if (!pass_all) return(NULL)
+    }
+    
+    # Only show title/tooltip if output$cor_table will show a real table
+    fluidRow(
+      column(
+        12,
+        div(
+          style = "display: flex; align-items: center; margin-bottom: 12px; margin-top: 12px;",
+          h4(strong("Correlation Interpretation"), style = "margin: 0;"),
+          tags$span(
+            icon("info-circle", class = "fa-solid"),
+            `data-bs-toggle` = "tooltip",
+            `data-bs-placement` = "right",
+            title = "Strength of correlation:\n
+• Pearson r / Spearman rho / bicor r:\n - 0.00–0.10: negligible\n - 0.10–0.30: weak\n - 0.30–0.50: moderate\n - 0.50–0.70: strong\n - 0.70–1.00: very strong\n
+• Kendall's tau:\n - 0.00–0.06: negligible\n - 0.06–0.20: weak\n - 0.20–0.40: moderate\n - 0.40–0.60: strong\n - 0.60–1.00: very strong\n
+• Positive (+): variables increase together\n • Negative (–): one variable increases as the other decreases.",
+            class = "no-print",
+            style = "margin-left:8px; color: black; cursor: pointer;"
+          )
+        )
+      )
+    )
+  })
+  
+  
+  
+  
+ 
 
 
   # Table Output Logic
   output$cor_table <- DT::renderDataTable({
+    if (cor_n_features() > 100) return(NULL)
     req(input$cor_run)
 
     valid_methods <- c("pearson", "spearman", "kendall", "biweight")
@@ -4061,7 +5160,7 @@ output$statistical_significance_square <- renderUI({
       }
     }
 
-    if (n_feat <= 10) {
+    if (n_feat <= 20) {
       DT::dataTableOutput("cor_matrix")
     } else {
       div(style="color:#a00; margin-top:8px;",
@@ -4071,6 +5170,7 @@ output$statistical_significance_square <- renderUI({
 
   # Show the correlation matrix
   output$cor_matrix <- DT::renderDataTable({
+    if (cor_n_features() > 100) return(NULL)
     req(input$cor_run)
     valid_methods <- c("pearson", "spearman", "kendall", "biweight")
     if (!(input$cor_method %in% valid_methods)) {
@@ -4140,6 +5240,7 @@ output$cor_matrix_download <- downloadHandler(
 )
 
 output$cor_matrix_download_ui <- renderUI({
+  if (cor_n_features() > 100) return(NULL)
   req(input$cor_run)
   valid_methods <- c("pearson", "spearman", "kendall", "biweight")
   if (!(input$cor_method %in% valid_methods)) return(NULL)
@@ -4187,11 +5288,13 @@ output$cor_matrix_download_ui <- renderUI({
 
   # Heatmap
   output$cor_heatmap_ui <- renderUI({
+    if (cor_n_features() > 100) return(NULL)
     req(input$cor_run)
     valid_methods <- c("pearson", "spearman", "kendall", "biweight")
     if (!(input$cor_method %in% valid_methods)) return(NULL)
 
-    n_feat <- length(input$cor_features)
+    #n_feat <- length(input$cor_features)
+    n_feat <- ncol(cor_clr_data())
 
     if (input$cor_method == "pearson" && n_feat == 2) return(NULL)
 
@@ -4223,44 +5326,80 @@ output$cor_matrix_download_ui <- renderUI({
 
 
 
-
-
+# Plot heatmap
+  heatmap_error_msg <- reactiveVal(NULL) 
+  heatmap_failed <- reactiveVal(FALSE)
+  
   output$cor_heatmap <- renderPlot({
+    if (cor_n_features() > 100) return(NULL)
     req(input$cor_run)
+    heatmap_error_msg(NULL)  # clear previous message
+    heatmap_failed(FALSE)    # reset flag
+    
     valid_methods <- c("pearson", "spearman", "kendall", "biweight")
-    if (!(input$cor_method %in% valid_methods)) {
-      return(
-        div(
-          style = "background-color:#f8d7da; color:#721c24; border:1px solid #f5c6cb; padding:16px; border-radius:6px; margin-top:16px; font-size:1.08em;",
-          icon("exclamation-circle", lib = "font-awesome"),
-          strong(" Please select a valid correlation method before running the analysis.")
-        )
-      )
-    }
-
+    if (!(input$cor_method %in% valid_methods)) return(NULL)
+    
     df <- cor_clr_data()
-    n_feat <- length(input$cor_features)
+    #n_feat <- length(input$cor_features)
+    n_feat <- ncol(df)
+    if (is.null(n_feat) || is.na(n_feat)) return(NULL)
     if (n_feat < 5 || n_feat > 20) return(NULL)
+    
+    # Calculate correlation matrix
     cormat <- correlation::correlation(df, method = input$cor_method, p_adjust = input$cor_p_adjust) %>%
       summary(redundant = TRUE)
     cormat_mat <- as.matrix(cormat[,-1])
     rownames(cormat_mat) <- cormat[,1]
     
+    # Calculate p-values matrix
+    corp <- correlation::correlation(df, method = input$cor_method, p_adjust = input$cor_p_adjust, 
+                                     redundant = T) %>% BiocGenerics::as.data.frame() %>% 
+      dplyr::select(Parameter1, Parameter2, p) %>% 
+      tidyr::pivot_wider(names_from = Parameter2, values_from = p) %>% 
+      tibble::column_to_rownames("Parameter1") %>% base::as.matrix()
     
-    # --- Dynamic label size ---
-    tl_size <- ifelse(n_feat > 15, 1.4,
-                      ifelse(n_feat > 10, 1.4, 1.4))
-    cl_size <- ifelse(n_feat > 15, 1.3,
-                      ifelse(n_feat > 10, 1.4, 1.4))
     
-    corrplot::corrplot(
-      cormat_mat, type = "lower", na.label = NA, outline = TRUE, order = "hclust",
-      tl.cex = tl_size, cl.cex = cl_size, tl.srt = 45, tl.col = "black", cl.ratio = 0.2,
-      col = rev(corrplot::COL2('RdBu', 200))
-    )
+    tl_size <- ifelse(n_feat > 15, 1.4, ifelse(n_feat > 10, 1.4, 1.4))
+    cl_size <- ifelse(n_feat > 15, 1.3, ifelse(n_feat > 10, 1.4, 1.4))
+    pch_size <- ifelse(n_feat > 15, 1.2, ifelse(n_feat > 10, 1.8, 1.6))
+    
+    tryCatch({
+      if (input$show_significance) {
+        corrplot::corrplot(
+          cormat_mat, p.mat = corp, type = "lower", na.label = NA, outline = TRUE, 
+          order = "hclust", tl.cex = tl_size, cl.cex = cl_size, tl.srt = 45, 
+          tl.col = "black", cl.ratio = 0.2, insig = 'label_sig', sig.level = c(0.001, 0.01, 0.05),
+          method = 'color',
+          pch.cex = pch_size, pch.col = "black", col = rev(corrplot::COL2('RdBu', 200)))
+      } else {
+        corrplot::corrplot(
+          cormat_mat, type = "lower", na.label = NA, outline = TRUE, order = "hclust",
+          tl.cex = tl_size, cl.cex = cl_size, tl.srt = 45, tl.col = "black", cl.ratio = 0.2,
+          method = 'color',
+          col = rev(corrplot::COL2('RdBu', 200))
+        )
+      }
+    }, error = function(e) {
+      if (grepl("NA/NaN/Inf.*arg 10", conditionMessage(e))) {
+        heatmap_error_msg(div(
+          style = "background-color:#f8d7da; color:#721c24; border:1px solid #f5c6cb; padding:16px; border-radius:6px; margin-top:16px; font-size:1.08em;",
+          icon("exclamation-circle", lib = "font-awesome"),
+          strong("Cannot plot heatmap:"),
+          "Too many missing values (NA) in the correlation matrix. ",
+          "This often occurs with bicor when the data contain many zeros, identical values, ties, or extreme outliers. Try a different correlation method or apply", strong("CLR transformation"), "to your data."
+        ))
+        heatmap_failed(TRUE)
+        return(NULL)
+      } else {
+        stop(e)
+      }
+    })
   })
+  
 
-
+  output$heatmap_error <- renderUI({
+    heatmap_error_msg()
+  })
 
  # Download
   output$cor_download_table <- downloadHandler(
@@ -4277,35 +5416,55 @@ output$cor_matrix_download_ui <- renderUI({
     filename = function() paste0("correlation_heatmap_", Sys.Date(), ".pdf"),
     content = function(file) {
       df <- cor_clr_data()
-      n_feat <- length(input$cor_features)
+      n_feat <- ncol(df)
+      if (is.null(n_feat) || is.na(n_feat)) return(NULL)
       if (n_feat >= 5 && n_feat <= 20) {
         cormat <- correlation::correlation(df, method = input$cor_method, p_adjust = input$cor_p_adjust) %>%
           summary(redundant = TRUE)
         cormat_mat <- as.matrix(cormat[,-1])
         rownames(cormat_mat) <- cormat[,1]
         
-        # --- Dynamic label size adjustment ---
-        tl_size <- ifelse(n_feat > 15, 1, # font size
-                          ifelse(n_feat > 10, 1.1, 1))
-        cl_size <- ifelse(n_feat > 15, 1, # color legend
-                          ifelse(n_feat > 10, 1, 1))
+        corp <- correlation::correlation(df, method = input$cor_method, p_adjust = input$cor_p_adjust, 
+                                         redundant = TRUE) %>% 
+          BiocGenerics::as.data.frame() %>% 
+          dplyr::select(Parameter1, Parameter2, p) %>% 
+          tidyr::pivot_wider(names_from = Parameter2, values_from = p) %>% 
+          tibble::column_to_rownames("Parameter1") %>% 
+          as.matrix()
         
-        #png(file, width = 500 + 60 * n_feat, height = 400 + 60 * n_feat, res = 300)
+        tl_size <- ifelse(n_feat > 15, 1, ifelse(n_feat > 10, 1.1, 1))
+        cl_size <- ifelse(n_feat > 15, 1, ifelse(n_feat > 10, 1, 1))
+        pch_size <- ifelse(n_feat > 15, 0.9, ifelse(n_feat > 10, 1.2, 1.3))
+        
         pdf(file, width = 8, height = 6)
         oldpar <- par(no.readonly = TRUE)
         on.exit({
           par(oldpar)
           dev.off()
         })
-        par(mar = c(2, 2, 2, 2)) # adjust if needed
-        corrplot::corrplot(
-          cormat_mat, type = "lower", na.label = NA, outline = TRUE, order = "hclust",
-          tl.cex = tl_size, cl.cex = cl_size, tl.srt = 45, tl.col = "black", cl.ratio = 0.2,
-          col = rev(corrplot::COL2('RdBu', 200))
-        )
+        par(mar = c(2, 2, 2, 2))
+        
+        # --- Conditional significance annotation ---
+        if (isTRUE(input$show_significance)) {
+          corrplot::corrplot(
+            cormat_mat, p.mat = corp, type = "lower", na.label = NA, outline = TRUE, order = "hclust",
+            tl.cex = tl_size, cl.cex = cl_size, tl.srt = 45, tl.col = "black", cl.ratio = 0.2,
+            insig = 'label_sig', sig.level = c(0.001, 0.01, 0.05), pch.cex = pch_size, pch.col = "black",
+            method = 'color',
+            col = rev(corrplot::COL2('RdBu', 200))
+          )
+        } else {
+          corrplot::corrplot(
+            cormat_mat, type = "lower", na.label = NA, outline = TRUE, order = "hclust",
+            tl.cex = tl_size, cl.cex = cl_size, tl.srt = 45, tl.col = "black", cl.ratio = 0.2,
+            method = 'color',
+            col = rev(corrplot::COL2('RdBu', 200))
+          )
+        }
       }
     }
   )
+  
   
 
     # Define reactiveVals first
@@ -4336,15 +5495,23 @@ output$cor_matrix_download_ui <- renderUI({
     })
 
     observeEvent(input$cor_file, {
+      # Reset correlation method and adjustment
       updateSelectInput(session, "cor_method", selected = "")
       updateSelectInput(session, "cor_p_adjust", selected = "BH")
       updateCheckboxInput(session, "cor_do_clr", value = FALSE)
       updateSliderInput(session, "cor_prev_filter", value = 0)
-      num_cols <- cor_numeric_features()
+      
+      # Update features to first two numeric columns
+      df <- cor_data()
+      req(df)
+      num_cols <- names(df)[sapply(df, is.numeric)]
+      #num_cols <- cor_numeric_features()
       updateSelectInput(session, "cor_features", selected = num_cols[seq_len(min(2, length(num_cols)))])
-
-
-      # Clear assumption values
+      
+      # Reset Select All checkbox if present
+      if (!is.null(input$cor_select_all)) updateCheckboxInput(session, "cor_select_all", value = FALSE)
+      
+      # Reset all assumption/test reactiveVals
       shap1_val(NULL)
       shap2_val(NULL)
       mvn_p_val(NULL)
@@ -4352,22 +5519,46 @@ output$cor_matrix_download_ui <- renderUI({
       car_outliers_val(NULL)
       perf_het_val(NULL)
       scatter_plot_val(NULL)
+      cor_assumptions_checked(FALSE)
+      
+      # Switch back to "Assumption Tests" tab
+      updateTabsetPanel(session, "cor_tabs", selected = "Assumption Tests")
     })
+    
 
+    
+    
+    
     output$cor_download_heatmap_ui <- renderUI({
+      if (cor_n_features() > 100) return(NULL)
       req(input$cor_run)
       valid_methods <- c("pearson", "spearman", "kendall", "biweight")
       if (!(input$cor_method %in% valid_methods)) return(NULL)
 
-      n_feat <- length(input$cor_features)
+      #n_feat <- length(input$cor_features)
+      n_feat <- ncol(cor_clr_data())
 
       if (input$cor_method == "pearson" && n_feat == 2) return(NULL)
       if (n_feat < 5 || n_feat > 20) return(NULL)
 
-      tagList(
+      tags$div(
+        style = "display: flex; align-items: center; gap: 16px;",
         downloadButton("cor_download_heatmap", "Download Heatmap"),
-        tags$div(style = "margin-top: 5px;")
+        tags$span(
+          icon("info-circle", class = "fa-solid"),
+          `data-bs-toggle` = "tooltip",
+          `data-bs-placement` = "right",
+          title = "Asterisks indicate significance levels:\n• p-value < 0.001 (***)\n• p-value < 0.01 (**)\n• p-value < 0.05 (*)\n
+          If asterisks overlap, please use shorter feature names.",
+          style = "cursor: pointer; color:#2c3e50;"
+        ),
+        tags$div(
+          style = "margin-top: 13px;",  # Adjust this value (e.g., 8px, 12px) for how far down you want it
+          checkboxInput("show_significance", "Show significance", value = TRUE, width = "150px")
+        )
       )
+      
+      
     })
 
 
@@ -4375,6 +5566,7 @@ output$cor_matrix_download_ui <- renderUI({
 
 
     output$cor_download_table_ui <- renderUI({
+      if (cor_n_features() > 100) return(NULL)
       req(input$cor_run)
       method <- input$cor_method
       n_feat <- length(input$cor_features)
@@ -4417,6 +5609,28 @@ output$cor_matrix_download_ui <- renderUI({
       # All other cases: Spearman, Kendall, Biweight, or Pearson with >2 features
       downloadButton("cor_download_table", "Download Table")
     })
+    
+    
+    observe({
+      n_feat <- cor_n_features()
+      if (n_feat > 100) {
+        shinyjs::disable("cor_download_table")
+        shinyjs::disable("cor_download_heatmap")
+        shinyjs::disable("cor_matrix_download")
+        shinyjs::disable("cor_download_plot")
+        shinyjs::disable("cor_check_assumptions")
+      } else {
+        shinyjs::enable("cor_download_table")
+        shinyjs::enable("cor_download_heatmap")
+        shinyjs::enable("cor_matrix_download")
+        shinyjs::enable("cor_download_plot")
+        if (input$cor_method == "pearson" && length(input$cor_features) == 2) {
+          shinyjs::enable("cor_check_assumptions")
+        }
+      }
+    })
+    
+    
 
 ############################################################################################################
 ############################################################################################################
@@ -4455,14 +5669,17 @@ output$cor_matrix_download_ui <- renderUI({
           any(col %% 1 != 0, na.rm = TRUE)  # exclude integer-only
       })]
       tagList(
-        selectInput("lm_dep", "Select dependent variable (continuous):",
+        selectInput("lm_dep", 
+                    tagList(
+                      "Select dependent variable (continuous):",
+                      tags$span(
+                        icon("info-circle", class = "fa-solid"),
+                        `data-bs-toggle` = "tooltip",
+                        `data-bs-placement` = "right",
+                        title = "Note: Only continuous variables are shown. Count or discrete variables are excluded, as they violate model assumptions. For count outcomes, please use the Poisson regression option."
+                      )),
                     choices = c("Select variable" = "", num_vars),
                     selected = ""),
-        tags$div(
-          style = "color: #b2182b; font-size: 13px; font-weight: bold; margin-top: -10px; margin-bottom: 10px;",
-          icon("info-circle", lib = "font-awesome"),
-          "Only continuous variables are shown. Count or discrete variables are excluded, as they violate model assumptions. For count outcomes, please use the negative binomial option."
-        )
       )
     })
 
@@ -4478,6 +5695,32 @@ output$cor_matrix_download_ui <- renderUI({
         options = list(placeholder = "Select variable"))
     })
 
+    
+    # ---- LM: UI for Dependent Variable transformation ----
+    output$lm_transform_ui <- renderUI({
+      req(lm_data())  # Ensure data is uploaded/available
+      
+      selectInput("lm_transform",
+                  tagList(
+                    "Transform dependent variable (optional):",
+                    tags$span(
+                      icon("info-circle", class = "fa-solid"),
+                      `data-bs-toggle` = "tooltip",
+                      `data-bs-placement` = "right",
+                      title = "Tip: If the dependent variable is highly skewed or not normally distributed, please apply a transformation before running the test. Use Log or Box-Cox for values > 0. Use Yeo-Johnson or Inverse Normal for variables that include positive values, zeros, or negatives. Always inspect the histogram before and after transformation."
+                    )),
+                  choices = c(
+                    "None" = "none",
+                    "Log" = "log",
+                    "Yeo-Johnson" = "yeojohnson",
+                    "Box-Cox" = "boxcox",
+                    "Inverse Normal" = "invnorm"
+                  ),
+                  selected = "none"
+      )
+    })
+    
+    
     # ---- Reset Independent Variable Choices When Dependent Changes ----
     observeEvent(input$lm_dep, {
       df <- lm_data()
@@ -4514,7 +5757,7 @@ output$cor_matrix_download_ui <- renderUI({
       # Allow user to select 2-way interactions
       combos <- combn(input$lm_indep, 2, simplify = FALSE)
       interact_labels <- sapply(combos, function(x) paste(x, collapse = " : "))
-      selectizeInput("lm_interact", "Add interaction term(s):",
+      selectizeInput("lm_interact", "Add interaction term(s) (optional):",
                      choices = setNames(sapply(combos, paste, collapse = ":"), interact_labels),
                      multiple = TRUE, selected = NULL,
                      options = list(placeholder = "Select interaction(s)"))
@@ -4539,7 +5782,7 @@ output$cor_matrix_download_ui <- renderUI({
       req(lm_model_data())
       updateTabsetPanel(session, inputId = "lm_tabs", selected = "Test Result")
 
-      output$lm_result <- renderPrint({
+      output$lm_result <- renderUI({
         df <- lm_model_data()
         main_effects <- input$lm_indep
         # If user picked interactions
@@ -4549,7 +5792,8 @@ output$cor_matrix_download_ui <- renderUI({
         }
         rhs <- c(main_effects, interaction_terms)
         fml <- as.formula(paste(input$lm_dep, "~", paste(rhs, collapse = " + ")))
-        lm(fml, data = df) %>%
+        
+        tbl_lm <-lm(fml, data = df) %>%
           broom::tidy(conf.int = T) %>%
           dplyr::mutate(Sig = dplyr::case_when(
             is.na(p.value) ~ "",
@@ -4558,10 +5802,40 @@ output$cor_matrix_download_ui <- renderUI({
             p.value < 0.05 ~ "*",
             TRUE ~ "NS"
           )) %>%
-          knitr::kable(align = "c", format = "simple")
+          knitr::kable(align = "c", format = "html") %>% 
+          kableExtra::kable_styling(
+            bootstrap_options = c("hover", "condensed", "bordered"),
+            position = "center", full_width = T) %>% 
+          kableExtra::scroll_box(width = "100%", height = "100%")
+        div(style = "margin-top: 15px;",
+        HTML(tbl_lm)
+        )
       })
     })
 
+    
+    # Assumptions notes     
+    output$note_title_lm <- renderUI({
+      req(input$lm_check)
+      fluidRow(
+        column(
+          12,
+          div(
+            style = "display: flex; align-items: center; margin-bottom: 12px; margin-top: 12px;",
+            h4(strong("Tips"), style = "margin: 0;"),
+            tags$span(
+              icon("info-circle", class = "fa-solid"),
+              `data-bs-toggle` = "tooltip",
+              `data-bs-placement` = "right",
+              title = "• If residuals are not normally distributed or variance is not constant (e.g., residuals vs. fitted plot shows a funnel shape), consider transforming the dependent variable (e.g., log, Box-Cox, or Yeo-Johnson).\n• If VIF > 10, remove or combine correlated predictors.\n• Check for influential outliers and consider removing or justifying them.",
+              class = "no-print",
+              style = "margin-left:8px; color: black; cursor: pointer;"
+            )
+          )
+        )
+      )
+    })
+    
 
     # ---- LM: Check Assumptions and Show Diagnostic Plots ----
     observeEvent(input$lm_check, {
@@ -4655,6 +5929,7 @@ output$cor_matrix_download_ui <- renderUI({
       }
       updateTabsetPanel(session, inputId = "lm_tabs", selected = "Dependent Variable Normality")
 
+      # LM histogram before transformation
       output$lm_hist_before <- renderPlot({
         shinyjs::show("download_hist_before")
         req(lm_data(), input$lm_dep)
@@ -4662,10 +5937,28 @@ output$cor_matrix_download_ui <- renderUI({
         ggplot2::ggplot(df, aes_string(input$lm_dep)) +
           geom_histogram(aes(y = after_stat(density)), color = "black", fill = "#4db6ac", bins = 30) +
           geom_density(color = "#b2182b", size = 1.2, alpha = 0.7, show.legend = FALSE) +
-          theme_test() +
-          labs(title = "Before Transformation", x = input$lm_dep, y = "Count")
+          theme_test() + 
+          theme(axis.title.x = element_text(colour = "black", face = "bold", size = 15)) + 
+          theme(axis.title.y = element_text(colour = "black", face = "bold", size = 15)) + 
+          theme(axis.text.y = element_text(colour = "black", size = 12)) + 
+          theme(axis.text.x = element_text(colour = "black", size = 12)) +
+          labs(title = "Before Transformation", x = input$lm_dep, y = "Density") +
+          theme(plot.title = element_text(size = 17))
       })
 
+      # LM histogram after transformation
+      output$lm_hist_after_ui <- renderUI({
+        req(input$lm_check_norm)
+        req(input$lm_transform)
+        if (input$lm_transform != "none") {
+          tagList(
+            plotOutput("lm_hist_after"),
+            downloadButton("download_hist_after", "Download After")
+          )
+        }
+      })
+      
+      
       output$lm_hist_after <- renderPlot({
         req(lm_transformed_data(), input$lm_dep)
         df <- lm_transformed_data()
@@ -4673,7 +5966,12 @@ output$cor_matrix_download_ui <- renderUI({
           geom_histogram(aes(y = after_stat(density)), color = "black", fill = "#ffb74d", bins = 30) +
           geom_density(color = "#b2182b", size = 1.2, alpha = 0.7, show.legend = FALSE) +
           theme_test() +
-          labs(title = "After Transformation", x = paste0(input$lm_dep, " (transformed)"), y = "Count")
+          theme(axis.title.x = element_text(colour = "black", face = "bold", size = 15)) + 
+          theme(axis.title.y = element_text(colour = "black", face = "bold", size = 15)) + 
+          theme(axis.text.y = element_text(colour = "black", size = 12)) + 
+          theme(axis.text.x = element_text(colour = "black", size = 12)) +
+          labs(title = "After Transformation", x = paste0(input$lm_dep, " (transformed)"), y = "Density") +
+          theme(plot.title = element_text(size = 17))
       })
     })
 
@@ -4705,17 +6003,22 @@ output$cor_matrix_download_ui <- renderUI({
       content = function(file) {
         df <- lm_data()
         dep_var <- input$lm_dep
-        png(file, width = 1200, height = 900, res = 150)
-        print(
-          ggplot2::ggplot(df, aes_string(dep_var)) +
-            geom_histogram(aes(y = after_stat(density)), color = "black", fill = "#4db6ac", bins = 30) +
-            geom_density(color = "#b2182b", size = 1.2, alpha = 0.7, show.legend = FALSE) +
-            theme_test() +
-            labs(title = "Before Transformation", x = dep_var, y = "Count")
-        )
-        dev.off()
+        p <- ggplot2::ggplot(df, aes_string(dep_var)) +
+          geom_histogram(aes(y = after_stat(density)), color = "black", fill = "#4db6ac", bins = 30) +
+          geom_density(color = "#b2182b", size = 1.2, alpha = 0.7, show.legend = FALSE) +
+          theme_test() + 
+          labs(title = "Before Transformation", x = dep_var, y = "Density") +
+          theme(
+            plot.title = element_text(size = 17),
+            axis.title.x = element_text(colour = "black", face = "bold", size = 15),
+            axis.title.y = element_text(colour = "black", face = "bold", size = 15),
+            axis.text.x = element_text(colour = "black", size = 12),
+            axis.text.y = element_text(colour = "black", size = 12)
+          )
+        ggsave(file, plot = p, width = 8, height = 6, dpi = 600)
       }
     )
+    
 
     # Download handler for AFTER transformation
     output$download_hist_after <- downloadHandler(
@@ -4723,17 +6026,22 @@ output$cor_matrix_download_ui <- renderUI({
       content = function(file) {
         req(lm_transformed_data(), input$lm_dep)
         df <- lm_transformed_data()
-        png(file, width = 1200, height = 900, res = 150)
-        print(
-          ggplot2::ggplot(df, aes_string(input$lm_dep)) +
-            geom_histogram(aes(y = after_stat(density)), color = "black", fill = "#ffb74d", bins = 30) +
-            geom_density(color = "#b2182b", size = 1.2, alpha = 0.7, show.legend = FALSE) +
-            theme_test() +
-            labs(title = "After Transformation", x = paste0(input$lm_dep, " (transformed)"), y = "Density")
-        )
-        dev.off()
+        p <- ggplot2::ggplot(df, aes_string(input$lm_dep)) +
+          geom_histogram(aes(y = after_stat(density)), color = "black", fill = "#ffb74d", bins = 30) +
+          geom_density(color = "#b2182b", size = 1.2, alpha = 0.7, show.legend = FALSE) +
+          theme_test() + 
+          labs(title = "After Transformation", x = paste0(input$lm_dep, " (transformed)"), y = "Density") +
+          theme(
+            plot.title = element_text(size = 17),
+            axis.title.x = element_text(colour = "black", face = "bold", size = 15),
+            axis.title.y = element_text(colour = "black", face = "bold", size = 15),
+            axis.text.x = element_text(colour = "black", size = 12),
+            axis.text.y = element_text(colour = "black", size = 12)
+          )
+        ggsave(file, plot = p, width = 8, height = 6, dpi = 600)
       }
     )
+    
 
     # Render forest plot
     output$lm_effect <- renderPlot({
@@ -4747,7 +6055,7 @@ output$cor_matrix_download_ui <- renderUI({
       rhs <- c(main_effects, interaction_terms)
       fml <- as.formula(paste(input$lm_dep, "~", paste(rhs, collapse = " + ")))
       mod <- lm(fml, data = df)
-      library(sjPlot)
+      #library(sjPlot)
       b <- sjPlot::get_model_data(mod, type = "est")
       b %>%
         dplyr::mutate(group = dplyr::case_when(
@@ -4770,7 +6078,7 @@ output$cor_matrix_download_ui <- renderUI({
               axis.title.y = element_text(size = 14, face = "bold"))
     })
 
-    # Automatically switch tab when “Plot Effects” is clicked
+    # Automatically switch tab when “Plot Forest” is clicked
     observeEvent(input$lm_plot, {
       if (is.null(input$lm_file)) {
         showNotification(strong("Please upload a data file."), type = "error")
@@ -4784,12 +6092,12 @@ output$cor_matrix_download_ui <- renderUI({
         showNotification(strong("Please choose independent variable(s)."), type = "error")
         return()
       }
-      updateTabsetPanel(session, inputId = "lm_tabs", selected = "Effect Plot")
+      updateTabsetPanel(session, inputId = "lm_tabs", selected = "Forest Plot")
     })
 
     # download of the effect plot as PNG
     output$lm_download_effect <- downloadHandler(
-      filename = function() paste0("lm_effect_plot_", Sys.Date(), ".png"),
+      filename = function() paste0("lm_forest_plot_", Sys.Date(), ".png"),
       content = function(file) {
         req(lm_model_data(), input$lm_dep, input$lm_indep)
         df <- lm_model_data()
@@ -4851,13 +6159,16 @@ lmm_vars <- reactive({
           any(col %% 1 != 0, na.rm = TRUE)  # exclude integer-only
       })]
       tagList(
-        selectInput("lmm_dep", "Select dependent variable (continuous):",
+        selectInput("lmm_dep", 
+                    tagList(
+                      "Select dependent variable (continuous):",
+                      tags$span(
+                        icon("info-circle", class = "fa-solid"),
+                        `data-bs-toggle` = "tooltip",
+                        `data-bs-placement` = "right",
+                        title = "Note: Only continuous variables are shown. Count or discrete variables are excluded, as they violate model assumptions. For count outcomes, please use the Poisson regression option."
+                      )),
                     choices = c("Select variable" = "", num_vars), selected = ""),
-        tags$div(
-          style = "color: #b2182b; font-size: 13px; font-weight: bold; margin-top: -10px; margin-bottom: 10px;",
-          icon("info-circle", lib = "font-awesome"),
-          "Only continuous variables are shown. Count or discrete variables are excluded, as they violate model assumptions. For count outcomes, please use the negative binomial option."
-        )
       )
     })
 
@@ -4878,12 +6189,12 @@ lmm_vars <- reactive({
       req(input$lmm_file, input$lmm_indep)
       choices <- input$lmm_indep
       if (length(choices) < 2) {
-        selectizeInput("lmm_interact", "Add interaction term(s):",
+        selectizeInput("lmm_interact", "Add interaction term(s) (optional):",
                        choices = c("No available interactions" = ""),
                        multiple = TRUE, selected = "", options = list(disabled = TRUE))
       } else {
         interact_choices <- combn(choices, 2, FUN = function(x) paste(x, collapse = ":"), simplify = TRUE)
-        selectizeInput("lmm_interact", "Add interaction term(s):",
+        selectizeInput("lmm_interact", "Add interaction term(s) (optional):",
                        choices = c("None" = "", interact_choices),
                        multiple = TRUE, selected = NULL,
                        options = list(placeholder = "Select interaction(s)"))
@@ -4917,7 +6228,35 @@ lmm_vars <- reactive({
     })
     
 
-
+    # ---- LMM: Random Variable UI ----
+    output$lmm_re_ui <- renderUI({
+      req(input$lmm_file)
+      df <- read.csv(input$lmm_file$datapath)
+      fact_vars <- names(df)[sapply(df, function(x) is.factor(x) || is.character(x))]
+      indep <- input$lmm_indep
+      choices <- setdiff(fact_vars, indep)
+      
+      selectizeInput(
+        "lmm_re",
+        label = tagList(
+          "Select random effect grouping variable(s):",
+          tags$span(
+            icon("info-circle", class = "fa-solid"),
+            `data-bs-toggle` = "tooltip",
+            `data-bs-placement` = "right",
+            title = "How to choose random effects: Use a random effect for hierarchical or grouped data (e.g., patient ID). If a grouping variable has many levels (usually more than 5), treat it as a random effect. With fewer levels, it is safer to include them as fixed effects (an independent variable). For nested data structures (e.g., students within classes within schools), include all relevant grouping variables as random effects to account for within-group correlations. Always ensure your choice reflects the study design and model assumptions.",
+            style = "margin-left: 8px; color: #2c3e50; font-size:16px; cursor: pointer;"
+          )
+        ),
+        choices = choices,
+        selected = NULL,
+        multiple = TRUE,
+        options = list(placeholder = 'Select variable')
+      )
+    })
+    
+    
+    
 
     # ---- LMM: Dependent Variable Transformation UI ----
     output$lmm_transform_ui <- renderUI({
@@ -4926,8 +6265,13 @@ lmm_vars <- reactive({
         "lmm_transform",
         tagList(
           "Transform dependent variable (optional):",
-          tags$span(icon("info-circle", id = "lmm_transform_info"),
-                    style = "color: #2c3e50; font-size:16px; margin-left:5px;")
+          tags$span(
+            icon("info-circle", class = "fa-solid"),
+            `data-bs-toggle` = "tooltip",
+            `data-bs-placement` = "right",
+            title = "Tip: If the dependent variable is highly skewed or not normally distributed, please apply a transformation before running the test. Use Log or Box-Cox for values > 0.  Use Yeo-Johnson or Inverse Normal for variables that include positive values, zeros, or negatives. Always inspect the histogram before and after transformation.",
+            style = "margin-left: 8px; color: #2c3e50; font-size:16px; cursor: pointer;"
+          )
         ),
         choices = c(
           "None" = "none",
@@ -4939,6 +6283,7 @@ lmm_vars <- reactive({
         selected = "none"
       )
     })
+    
 
 
     # ---- LMM: Load Data ----
@@ -4985,15 +6330,29 @@ lmm_vars <- reactive({
         ggplot2::ggplot(df, aes_string(input$lmm_dep)) +
           geom_histogram(aes(y = after_stat(density)), color = "black", fill = "#4db6ac", bins = 30) +
           geom_density(color = "#b2182b", size = 1.2, alpha = 0.7, show.legend = FALSE) +
-          theme_test() +
-          labs(title = "Before Transformation", x = input$lmm_dep, y = "Density")
+          theme_test() + 
+          theme(axis.title.x = element_text(colour = "black", face = "bold", size = 15)) + 
+          theme(axis.title.y = element_text(colour = "black", face = "bold", size = 15)) + 
+          theme(axis.text.y = element_text(colour = "black", size = 12)) + 
+          theme(axis.text.x = element_text(colour = "black", size = 12)) +
+          labs(title = "Before Transformation", x = input$lmm_dep, y = "Density") +
+          theme(plot.title = element_text(size = 17))
       })
 
       shinyjs::hide("lmm_download_hist_before")
       
       # Histogram AFTER transformation
+      output$lmm_hist_after_ui <- renderUI({
+        if (!is.null(input$lmm_transform) && input$lmm_transform != "none") {
+          tagList(
+            plotOutput("lmm_hist_after"),
+            downloadButton("lmm_download_hist_after", "Download After")
+          )
+        }
+      })
+      
+      
       output$lmm_hist_after <- renderPlot({
-        shinyjs::show("lmm_download_hist_before")
         req(lmm_data(), input$lmm_dep)
         df <- lmm_data()
         x <- df[[input$lmm_dep]]
@@ -5007,8 +6366,13 @@ lmm_vars <- reactive({
         ggplot2::ggplot(plot_df, aes(val)) +
           geom_histogram(aes(y = after_stat(density)), color = "black", fill = "#ffb74d", bins = 30) +
           geom_density(color = "#b2182b", size = 1.2, alpha = 0.7, show.legend = FALSE) +
-          theme_test() +
-          labs(title = "After Transformation", x = paste0(input$lmm_dep, " (transformed)"), y = "Density")
+          theme_test() + 
+          theme(axis.title.x = element_text(colour = "black", face = "bold", size = 15)) + 
+          theme(axis.title.y = element_text(colour = "black", face = "bold", size = 15)) + 
+          theme(axis.text.y = element_text(colour = "black", size = 12)) + 
+          theme(axis.text.x = element_text(colour = "black", size = 12)) +
+          labs(title = "After Transformation", x = paste0(input$lmm_dep, " (transformed)"), y = "Density") +
+          theme(plot.title = element_text(size = 17))
       })
     })
 
@@ -5018,17 +6382,23 @@ lmm_vars <- reactive({
       content = function(file) {
         req(lmm_data(), input$lmm_dep)
         df <- lmm_data()
-        png(file, width = 1200, height = 900, res = 150)
-        print(
-          ggplot2::ggplot(df, aes_string(input$lmm_dep)) +
-            geom_histogram(aes(y = after_stat(density)), color = "black", fill = "#4db6ac", bins = 30) +
-            geom_density(color = "#b2182b", size = 1.2, alpha = 0.7, show.legend = FALSE) +
-            theme_test() +
-            labs(title = "Before Transformation", x = input$lmm_dep, y = "Density")
-        )
-        dev.off()
+        p <- ggplot2::ggplot(df, aes_string(input$lmm_dep)) +
+          geom_histogram(aes(y = after_stat(density)), color = "black", fill = "#4db6ac", bins = 30) +
+          geom_density(color = "#b2182b", size = 1.2, alpha = 0.7, show.legend = FALSE) +
+          theme_test() + 
+          labs(title = "Before Transformation", x = input$lmm_dep, y = "Density") +
+          theme(
+            plot.title = element_text(size = 17),
+            axis.title.x = element_text(colour = "black", face = "bold", size = 15),
+            axis.title.y = element_text(colour = "black", face = "bold", size = 15),
+            axis.text.x = element_text(colour = "black", size = 12),
+            axis.text.y = element_text(colour = "black", size = 12)
+          )
+        ggsave(file, plot = p, width = 8, height = 6, dpi = 600)
       }
     )
+    
+    
     output$lmm_download_hist_after <- downloadHandler(
       filename = function() paste0("lmm_hist_after_", Sys.Date(), ".png"),
       content = function(file) {
@@ -5039,20 +6409,24 @@ lmm_vars <- reactive({
                           "log" = log(x[x > 0]),
                           "yeojohnson" = bestNormalize::yeojohnson(x)$x.t,
                           "boxcox" = bestNormalize::boxcox(x[x > 0])$x.t,
-                          "invnorm" = bestNormalize::orderNorm(x)$x.t,
-                          "none" = x)
+                          "invnorm" = bestNormalize::orderNorm(x)$x.t)
         plot_df <- data.frame(val = trans_x)
-        png(file, width = 1200, height = 900, res = 150)
-        print(
-          ggplot2::ggplot(plot_df, aes(val)) +
-            geom_histogram(aes(y = after_stat(density)), color = "black", fill = "#ffb74d", bins = 30) +
-            geom_density(color = "#b2182b", size = 1.2, alpha = 0.7, show.legend = FALSE) +
-            theme_test() +
-            labs(title = "After Transformation", x = paste0(input$lmm_dep, " (transformed)"), y = "Density")
-        )
-        dev.off()
+        p <- ggplot2::ggplot(plot_df, aes(val)) +
+          geom_histogram(aes(y = after_stat(density)), color = "black", fill = "#ffb74d", bins = 30) +
+          geom_density(color = "#b2182b", size = 1.2, alpha = 0.7) +
+          theme_test() +
+          labs(title = "After Transformation", x = paste0(input$lmm_dep, " (transformed)"), y = "Density") +
+          theme(
+            plot.title = element_text(size = 17),
+            axis.title.x = element_text(colour = "black", face = "bold", size = 15),
+            axis.title.y = element_text(colour = "black", face = "bold", size = 15),
+            axis.text.x = element_text(colour = "black", size = 12),
+            axis.text.y = element_text(colour = "black", size = 12)
+          )
+        ggsave(file, plot = p, width = 8, height = 6, dpi = 600)
       }
     )
+    
 
     # Optionally, disable the after-download button if "none" selected
     observe({
@@ -5183,6 +6557,30 @@ lmm_vars <- reactive({
         }
 
 
+        
+        # Assumptions notes     
+        output$note_title_lmm <- renderUI({
+          req(input$lmm_check)
+          fluidRow(
+            column(
+              12,
+              div(
+                style = "display: flex; align-items: center; margin-bottom: 12px; margin-top: 12px;",
+                h4(strong("Tips"), style = "margin: 0;"),
+                tags$span(
+                  icon("info-circle", class = "fa-solid"),
+                  `data-bs-toggle` = "tooltip",
+                  `data-bs-placement` = "right",
+                  title = "• If residuals are not normally distributed or variance is not constant (e.g., residuals vs. fitted plot shows a funnel shape), consider transforming the dependent variable (e.g., log, Box-Cox, or Yeo-Johnson).\n• If VIF > 10, remove or combine correlated predictors.\n• Check for influential outliers and consider removing or justifying them.\n• If random effects are non-normal, consider simplifying or interpreting results with caution.",
+                  class = "no-print",
+                  style = "margin-left:8px; color: black; cursor: pointer;"
+                )
+              )
+            )
+          )
+        })
+        
+        
       # Render diagnostic plots using performance::check_model
         output$lmm_assump <- renderPlot({
           req(lmm_model_assump())
@@ -5335,7 +6733,7 @@ lmm_vars <- reactive({
     
     
 
-    output$lmm_result <- renderPrint({
+    output$lmm_result <- renderUI({
       df <- lmm_data()
       model <- lmm_model()
       if (is.null(model)) return(invisible(NULL))
@@ -5352,7 +6750,7 @@ lmm_vars <- reactive({
       }
       
       # Only print tidy table if model succeeded
-      broom.mixed::tidy(model, conf.int = TRUE) %>%
+      tbl_lmm <- broom.mixed::tidy(model, conf.int = TRUE) %>%
         dplyr::filter(effect == "fixed") %>%
         dplyr::filter(!term %in% c("sd__(Intercept)", "sd__Observation")) %>%
         dplyr::select(-c(effect, group)) %>%
@@ -5363,7 +6761,14 @@ lmm_vars <- reactive({
           p.value < 0.05 ~ "*",
           TRUE ~ "NS"
         )) %>%
-        knitr::kable(align = "c", format = "simple")
+        knitr::kable(align = "c", format = "html") %>% 
+        kableExtra::kable_styling(
+          bootstrap_options = c("hover", "condensed", "bordered"),
+          position = "center", full_width = T) %>% 
+        kableExtra::scroll_box(width = "100%", height = "100%")
+      div(style = "margin-top: 15px;",
+          HTML(tbl_lmm)
+      )
     })
     
     
@@ -5387,9 +6792,6 @@ lmm_vars <- reactive({
         }
         updateTabsetPanel(session, inputId = "lmm_tabs", selected = "Test Result")
       })
-
-      # # Use kable for HTML
-      # HTML(knitr::kable(out, align = "c", format = "html", table.attr='class="table table-condensed table-bordered table-striped"'))
 
 
       lmm_model_plot <- reactive({
@@ -5438,7 +6840,7 @@ lmm_vars <- reactive({
         }
         
         
-        updateTabsetPanel(session, inputId = "lmm_tabs", selected = "Effect Plot")
+        updateTabsetPanel(session, inputId = "lmm_tabs", selected = "Forest Plot")
         
         prob_vars <- lmm_id_col_problem()
         if (length(prob_vars) > 0) {
@@ -5517,7 +6919,7 @@ lmm_vars <- reactive({
         })
         
         output$lmm_download_effect <- renderUI({
-          downloadButton("lmm_download_effect_real", "Download Effect Plot")
+          downloadButton("lmm_download_effect_real", "Download Forest Plot")
         })
         
       })
@@ -5526,11 +6928,11 @@ lmm_vars <- reactive({
       # Download forest plot (LMM)
       # Inside observer, after all checks:
       output$lmm_download_effect <- renderUI({
-        downloadButton("lmm_download_effect_real", "Download Effect Plot")
+        downloadButton("lmm_download_effect_real", "Download Forest Plot")
       })
       
       output$lmm_download_effect_real <- downloadHandler(
-        filename = function() paste0("lmm_effect_plot_", Sys.Date(), ".png"),
+        filename = function() paste0("lmm_forest_plot_", Sys.Date(), ".png"),
         content = function(file) {
           req(lmm_model_plot())
           df <- broom.mixed::tidy(lmm_model_plot(), conf.int = TRUE) %>%
@@ -5635,7 +7037,7 @@ lmm_vars <- reactive({
         interact_labels <- sapply(combos, function(x) paste(x, collapse = " : "))
 
         selectizeInput(
-          "log_interact", "Add interaction term(s):",
+          "log_interact", "Add interaction term(s) (optional):",
           choices = setNames(sapply(combos, paste, collapse = ":"), interact_labels),
           multiple = TRUE, selected = NULL,
           options = list(placeholder = "Select interaction(s)")
@@ -5659,7 +7061,7 @@ lmm_vars <- reactive({
         req(log_model_data())
         updateTabsetPanel(session, inputId = "log_tabs", selected = "Test Result")
 
-        output$log_result <- renderPrint({
+        output$log_result <- renderUI({
           df <- log_model_data()
           main_effects <- input$log_indep
           interaction_terms <- NULL
@@ -5669,32 +7071,31 @@ lmm_vars <- reactive({
           rhs <- c(main_effects, interaction_terms)
           fml <- as.formula(paste(input$log_dep, "~", paste(rhs, collapse = " + ")))
           
-          warning_shown <- FALSE
-          mod <- withCallingHandlers(
-            glm(fml, data = df, family = binomial),
-            warning = function(w) {
-              if (grepl("fitted probabilities numerically 0 or 1", conditionMessage(w)) && !warning_shown) {
-                showNotification(
-                  div(
-                    style = "background-color:#fff3cd; color:#856404; padding:14px; border:1px solid #ffeeba; border-radius:5px;",
-                    icon("exclamation-triangle", lib = "font-awesome"),
-                    strong("Model warning:"),
-                    " Some variables in your data can perfectly predict the outcome. This can make the statistical results unreliable.",
-                    br(),
-                    "What you can do: Try removing variables or combining categories so no single variable always predicts the result."
-                  ),
-                  type = "warning"
-                )
-                warning_shown <<- TRUE
-              }
-              invokeRestart("muffleWarning")
-            }
-          )
+          # --- Fit the penalized logistic regression model ---
+          mod <- glm(fml, data = df, family = binomial(), method = "brglmFit")
           
-          if (is.null(mod)) return(invisible(NULL))
+          # --- Extract tidy summary and check for problematic variables ---
+          b <- broom::tidy(mod, conf.int = TRUE)
+          problem_vars <- b$term[is.na(b$conf.low) | is.na(b$conf.high) | abs(b$estimate) > 10]
           
-          mod %>%
-            broom::tidy(conf.int = TRUE) %>%
+          # --- Unified, concise warning (if any problematic variables detected) ---
+          if (length(problem_vars) > 0) {
+            showNotification(
+              div(
+                style = "background-color:#fff3cd; color:#856404; padding:14px; border:1px solid #ffeeba; border-radius:5px;",
+                icon("exclamation-triangle", lib = "font-awesome"),
+                strong("Model warning:"),
+                "Model results may be unreliable because ",
+                tags$b(paste(problem_vars, collapse = ", ")),
+                " perfectly predicts the outcome or is too rare. ",
+                "Try removing or merging these variable(s) to resolve this."
+              ),
+              type = "warning", duration = 20
+            )
+          }
+          
+          # --- Prepare and render the summary table ---
+          tbl_log <- b %>%
             dplyr::mutate(Sig = dplyr::case_when(
               is.na(p.value) ~ "",
               p.value < 0.001 ~ "***",
@@ -5702,8 +7103,18 @@ lmm_vars <- reactive({
               p.value < 0.05 ~ "*",
               TRUE ~ "NS"
             )) %>%
-            knitr::kable(align = "c", format = "simple")
+            knitr::kable(align = "c", format = "html") %>%
+            kableExtra::kable_styling(
+              bootstrap_options = c("hover", "condensed", "bordered"),
+              position = "center", full_width = T) %>%
+            kableExtra::scroll_box(width = "100%", height = "100%")
+          
+          div(style = "margin-top: 15px;",
+              HTML(tbl_log)
+          )
         })
+        
+        
         
       })
 
@@ -5713,7 +7124,7 @@ lmm_vars <- reactive({
         df <- log_data()
         model_vars <- c(input$log_dep, input$log_indep)
         df <- df %>% dplyr::select(all_of(model_vars)) %>% tidyr::drop_na()
-
+        
         if (input$log_dep %in% input$log_indep) {
           showNotification(strong("Dependent variable cannot be included as independent."), type = "error")
           return(NULL)
@@ -5722,18 +7133,70 @@ lmm_vars <- reactive({
           showNotification(strong("Please select at least one independent variable."), type = "error")
           return(NULL)
         }
-
-        # ---- Recode dependent variable to 0/1 if binary factor ----
-        df[[input$log_dep]] <- as.factor(df[[input$log_dep]])
-        if (length(levels(df[[input$log_dep]])) != 2) {
-          showNotification(strong("Dependent variable must have exactly 2 levels for logistic regression."), type = "error")
+        
+        # Force dependent variable to character, then explicitly recode
+        dep_var <- input$log_dep
+        dep_vec <- as.character(df[[dep_var]])
+        dep_levels <- unique(dep_vec)
+        
+        # Check exactly two unique non-NA values
+        if (length(dep_levels) != 2) {
+          showNotification(strong(
+            sprintf("Dependent variable must have exactly 2 levels, found: %s", paste(dep_levels, collapse = ", "))
+          ), type = "error")
           return(NULL)
         }
-        df[[input$log_dep]] <- as.numeric(df[[input$log_dep]]) - 1
-
+        
+        # Explicitly set the "success" level as 'yes' if present, else the second value
+        if ("yes" %in% dep_levels) {
+          # Recode as factor, with 'no' as reference (0), 'yes' as 1
+          df[[dep_var]] <- factor(df[[dep_var]], levels = c(setdiff(dep_levels, "yes"), "yes"))
+        } else {
+          # Use alphabetical ordering, first is reference (0), second is 1
+          df[[dep_var]] <- factor(df[[dep_var]], levels = sort(dep_levels))
+        }
+        
+        # Now, convert to numeric 0/1, with 'yes' or the second level as 1
+        df[[dep_var]] <- as.numeric(df[[dep_var]]) - 1
+        
+        # Now, for predictors: always force them to factors with explicit ordering if possible
+        for (pred in input$log_indep) {
+          if (is.character(df[[pred]]) || is.factor(df[[pred]])) {
+            # If binary, order as (reference, alternate)
+            pred_levels <- unique(as.character(df[[pred]]))
+            if (length(pred_levels) == 2) {
+              df[[pred]] <- factor(df[[pred]], levels = sort(pred_levels))
+            } else {
+              df[[pred]] <- as.factor(df[[pred]])
+            }
+          }
+        }
+        
         df
       })
 
+      # Assumptions notes     
+      output$note_title_log <- renderUI({
+        req(input$log_check)
+        fluidRow(
+          column(
+            12,
+            div(
+              style = "display: flex; align-items: center; margin-bottom: 12px; margin-top: 12px;",
+              h4(strong("Tips"), style = "margin: 0;"),
+              tags$span(
+                icon("info-circle", class = "fa-solid"),
+                `data-bs-toggle` = "tooltip",
+                `data-bs-placement` = "right",
+                title = "• If binned residuals show poor fit, add relevant predictors, check variable coding, or include interaction terms.\n• If the residual Q-Q plot deviates strongly from the diagonal, reconsider model fit or add relevant predictors.\n• If VIF > 10, remove or combine correlated predictors.",
+                class = "no-print",
+                style = "margin-left:8px; color: black; cursor: pointer;"
+              )
+            )
+          )
+        )
+      })
+      
 
       # ---- Logistic Regression: Check Assumptions and Show Diagnostic Plots ----
       observeEvent(input$log_check, {
@@ -5761,7 +7224,25 @@ lmm_vars <- reactive({
           }
           rhs <- c(main_effects, interaction_terms)
           fml <- as.formula(paste(input$log_dep, "~", paste(rhs, collapse = " + ")))
-          mod <- glm(fml, data = df, family = binomial)
+          mod <- glm(fml, data = df, family = binomial(), method = "brglmFit")
+          
+          # --- Warning if assumption checks may be misleading ---
+          b <- broom::tidy(mod, conf.int = TRUE)
+          problem_vars <- b$term[is.na(b$conf.low) | is.na(b$conf.high) | abs(b$estimate) > 10]
+          if (length(problem_vars) > 0) {
+            showNotification(
+              div(
+                style = "background-color:#fff3cd; color:#856404; padding:14px; border:1px solid #ffeeba; border-radius:5px;",
+                icon("exclamation-triangle", lib = "font-awesome"),
+                strong("Model warning:"),
+                tags$b(paste(problem_vars, collapse = ", ")),
+                " may cause model diagnostics and assumption checks to be misleading.",
+                "Review your predictors before interpreting these results."
+              ),
+              type = "warning", duration = 20
+            )
+          }
+          
           performance::check_model(mod)
         })
       })
@@ -5776,10 +7257,14 @@ lmm_vars <- reactive({
           interaction_terms <- gsub(":", " * ", input$log_interact)
         }
         rhs <- c(main_effects, interaction_terms)
+        if (length(rhs) == 0) {
+          showNotification(strong("No predictors selected. Please select at least one predictor."), type = "error")
+          return(NULL)
+        }
         fml <- as.formula(paste(input$log_dep, "~", paste(rhs, collapse = " + ")))
-        mod <- glm(fml, data = df, family = binomial)
-
-        # Use broom::tidy to get correct estimates + CI on log-odds scale
+        
+        mod <- glm(fml, data = df, family = binomial(), method = "brglmFit")
+        
         b <- broom::tidy(mod, conf.int = TRUE) %>%
           dplyr::mutate(
             group = dplyr::case_when(
@@ -5790,15 +7275,39 @@ lmm_vars <- reactive({
           ) %>%
           dplyr::filter(!is.na(conf.low), !is.na(conf.high)) %>%
           dplyr::filter(term != "(Intercept)")
-
+        
+        # Warn for NA intervals or large estimates
+        bad_terms <- b %>% dplyr::filter(is.na(conf.low) | is.na(conf.high) | abs(estimate) > 10)
+        
+        if (!mod$converged || nrow(bad_terms) > 0) {
+          showNotification(
+            div(
+              style = "background-color:#fff3cd; color:#856404; padding:14px; border:1px solid #ffeeba; border-radius:5px;",
+              icon("exclamation-triangle", lib = "font-awesome"),
+              strong("Model warning:"),
+              if (nrow(bad_terms) > 0) {
+                tagList(
+                  "Results may be unreliable because ",
+                  tags$b(paste(bad_terms$term, collapse = ", ")),
+                  " perfectly predicts the outcome or is too rare. "
+                )
+              } else {
+                "Model did not converge. This usually means some predictors perfectly separate the outcome or categories are highly imbalanced."
+              },
+              "Try removing or merging these variable(s) to resolve this."
+            ),
+            type = "warning", duration = 20
+          )
+        }
+        
         if (nrow(b) == 0) {
           showNotification(strong("Effect plot could not be generated due to NA estimates or intervals."), 
                            type = "error")
           return(NULL)
         }
-
+        
         xlim_val <- max(abs(c(b$conf.low, b$conf.high)), na.rm = TRUE)
-
+        
         ggplot2::ggplot(b, aes(x = estimate, y = term)) +
           geom_vline(xintercept = 0, linetype = "dashed") +
           geom_errorbarh(aes(xmin = conf.low, xmax = conf.high), height = 0.11, size = 0.4, color = "black") +
@@ -5814,8 +7323,9 @@ lmm_vars <- reactive({
             axis.title.y = element_text(size = 14, face = "bold")
           )
       })
+      
 
-      # ---- Logistic Regression: Auto-switch to Effect Plot Tab ----
+      # ---- Logistic Regression: Auto-switch to Forest Plot Tab ----
       observeEvent(input$log_plot, {
         if (is.null(input$log_file)) {
           showNotification(strong("Please upload a data file."), type = "error")
@@ -5829,7 +7339,7 @@ lmm_vars <- reactive({
           showNotification(strong("Please choose independent variable(s)."), type = "error")
           return()
         }
-        updateTabsetPanel(session, inputId = "log_tabs", selected = "Effect Plot")
+        updateTabsetPanel(session, inputId = "log_tabs", selected = "Forest Plot")
       })
 
       # ---- Logistic Regression: Download Assumption Plot ----
@@ -5853,9 +7363,9 @@ lmm_vars <- reactive({
         contentType = "application/pdf"
       )
 
-      # ---- Logistic Regression: Download Effect Plot ----
+      # ---- Logistic Regression: Download Forest Plot ----
       output$log_download_effect <- downloadHandler(
-        filename = function() paste0("logistic_effect_plot_", Sys.Date(), ".png"),
+        filename = function() paste0("logistic_forest_plot_", Sys.Date(), ".png"),
         content = function(file) {
           df <- log_model_data()
           main_effects <- input$log_indep
@@ -5865,7 +7375,7 @@ lmm_vars <- reactive({
           }
           rhs <- c(main_effects, interaction_terms)
           fml <- as.formula(paste(input$log_dep, "~", paste(rhs, collapse = " + ")))
-          mod <- glm(fml, data = df, family = binomial)
+          mod <- glm(fml, data = df, family = binomial(), method = "brglmFit")
 
           b <- broom::tidy(mod, conf.int = TRUE) %>%
             dplyr::filter(!is.na(conf.low), !is.na(conf.high), !is.na(estimate)) %>%
@@ -5923,6 +7433,7 @@ lmm_vars <- reactive({
           )
       })
 
+      
       # ---- Negative Binomial: UI for Dependent Variable ----
       output$nb_dep_ui <- renderUI({
         df <- nb_data()
@@ -5931,14 +7442,17 @@ lmm_vars <- reactive({
         })]
 
         tagList(
-          selectInput("nb_dep", "Select dependent variable (counts only):",
+          selectInput("nb_dep", 
+                      tagList(
+                        "Select dependent variable (counts only):",
+                        tags$span(
+                          icon("info-circle", class = "fa-solid"),
+                          `data-bs-toggle` = "tooltip",
+                          `data-bs-placement` = "right",
+                          title = "Note: Only count data are shown. Continuous variables are excluded, as they violate model assumptions. For continuous outcomes, please use LM or LMM instead."
+                        )),
                       choices = c("Select variable" = "", count_like_vars),
                       selected = ""),
-          tags$div(
-            style = "color: #b2182b; font-size: 13px; font-weight: bold; margin-top: -10px; margin-bottom: 10px;",
-            icon("info-circle", lib = "font-awesome"),
-            "Only count data are shown. Continuous variables are excluded, as they violate model assumptions. For continuous outcomes, please use LM or LMM instead."
-          )
         )
       })
 
@@ -5968,7 +7482,7 @@ lmm_vars <- reactive({
         interact_labels <- sapply(combos, function(x) paste(x, collapse = " : "))
 
         selectizeInput(
-          "nb_interact", "Add interaction term(s):",
+          "nb_interact", "Add interaction term(s) (optional):",
           choices = setNames(sapply(combos, paste, collapse = ":"), interact_labels),
           multiple = TRUE, selected = NULL,
           options = list(placeholder = "Select interaction(s)")
@@ -6016,7 +7530,7 @@ lmm_vars <- reactive({
         req(nb_model_data())
         updateTabsetPanel(session, inputId = "nb_tabs", selected = "Test Result")
 
-        output$nb_result <- renderPrint({
+        output$nb_result <- renderUI({
           df <- nb_model_data()
           main_effects <- input$nb_indep
           interaction_terms <- NULL
@@ -6028,7 +7542,7 @@ lmm_vars <- reactive({
           rhs <- c(main_effects, interaction_terms)
           fml <- as.formula(paste(input$nb_dep, "~", paste(rhs, collapse = " + ")))
 
-          MASS::glm.nb(fml, data = df) %>%
+        tbl_nb <- MASS::glm.nb(fml, data = df) %>%
             broom::tidy(conf.int = TRUE) %>%
             dplyr::mutate(Sig = dplyr::case_when(
               is.na(p.value) ~ "",
@@ -6037,10 +7551,130 @@ lmm_vars <- reactive({
               p.value < 0.05 ~ "*",
               TRUE ~ "NS"
             )) %>%
-            knitr::kable(align = "c", format = "simple")
+            knitr::kable(align = "c", format = "html") %>% 
+          kableExtra::kable_styling(
+            bootstrap_options = c("hover", "condensed", "bordered"),
+            position = "center", full_width = T) %>% 
+          kableExtra::scroll_box(width = "100%", height = "100%")
+        div(style = "margin-top: 15px;",
+            HTML(tbl_nb)
+        )
+        
         })
       })
 
+      # Assumptions notes
+      output$note_title_nb <- renderUI({
+        req(input$nb_check)
+        fluidRow(
+          column(
+            12,
+            div(
+              style = "display: flex; align-items: center; margin-bottom: 12px; margin-top: 12px;",
+              h4(strong("Tips"), style = "margin: 0;"),
+              tags$span(
+                icon("info-circle", class = "fa-solid"),
+                `data-bs-toggle` = "tooltip",
+                `data-bs-placement` = "right",
+                title = "• If observed residual variance (green) does not follow predicted variance (blue), add relevant predictors, add interaction terms, or use a zero-inflated negative binomial model (if excess zeros are present).\n• If the residual Q-Q plot deviates strongly from the diagonal, reconsider model fit or add relevant predictors.\n• If VIF > 10, remove or combine correlated predictors.",
+                class = "no-print",
+                style = "margin-left:8px; color: black; cursor: pointer;"
+              )
+            )
+          )
+        )
+      })
+      
+      # ---- Zero-inflation check ----
+      # Helper for null coalescing (add to your script if not present)
+      `%||%` <- function(a, b) if (!is.null(a)) a else b
+      
+      output$nb_zeroinfl_ui <- renderUI({
+        req(input$nb_check)
+        df <- nb_model_data()
+        main_effects <- input$nb_indep
+        interaction_terms <- NULL
+        if (!is.null(input$nb_interact) && length(input$nb_interact) > 0) {
+          interaction_terms <- gsub(":", " * ", input$nb_interact)
+        }
+        rhs <- c(main_effects, interaction_terms)
+        fml <- as.formula(paste(input$nb_dep, "~", paste(rhs, collapse = " + ")))
+        mod <- MASS::glm.nb(fml, data = df)
+        val <- performance::check_zeroinflation(mod)
+        
+        # Compose the UI
+        ui_list <- list(
+          div(
+            style = "display: flex; align-items: center; margin-bottom: 12px; margin-top: 10px;",
+            h4(strong("Zero-Inflation Test"), style = "margin: 0;"),
+            tags$span(
+              icon("info-circle", class = "fa-solid"),
+              `data-bs-toggle` = "tooltip",
+              `data-bs-placement` = "right",
+              title = paste(
+                "A formal zero-inflation test is provided because diagnostic plots can sometimes be unclear.",
+                "This test gives an objective answer about zero inflation.",
+                "If zero inflation is detected (i.e., ratio of observed/predicted zeros is outside 0.90–1.10), please use a zero-inflated negative binomial regression instead."
+              ),
+              class = "no-print",
+              style = "margin-left:8px; color: black; cursor: pointer;"
+            )
+          )
+        )
+        
+        # Compose details/info box and status
+        if (is.null(val)) {
+          ui_list <- append(ui_list, list(
+            div(
+              style = "background-color:#F5F5F5; color:black; font-size:1.1em; border:1.5px solid #B3B3B3; border-radius:8px; padding:12px 16px; margin-bottom:8px; white-space:pre-wrap; margin-top:12px;",
+              "Model has no observed zeros in the response variable."
+            )
+          ))
+        } else {
+          # Try all common variants for the stats
+          obs_zeros <- val$observed_zeros %||% val$Observed_zeros %||% val$observed %||% val$Observed %||% "NA"
+          pred_zeros <- val$predicted_zeros %||% val$Predicted_zeros %||% val$predicted %||% val$Predicted %||% "NA"
+          ratio <- val$ratio %||% val$Ratio %||% NA
+          pval <- val$p_value %||% val$p.value %||% val$P_value %||% NA
+          
+          detail_text <- paste0(
+            "<b>Observed zeros:</b> ", obs_zeros, "<br>",
+            "<b>Predicted zeros:</b> ", pred_zeros, "<br>",
+            "<b>Ratio:</b> ", if (!is.na(ratio)) sprintf("%.2f", as.numeric(ratio)) else "NA",
+            if (!is.na(pval)) paste0("<br><b>p-value:</b> ", format.pval(pval, digits = 3)) else ""
+          )
+          
+          # Use BOTH the range and the p-value for the decision (0.90–1.10)
+          in_range <- (!is.na(ratio) && ratio >= 0.90 && ratio <= 1.10)
+          color_box <- if (in_range) "green" else "#B20D00"
+          status_msg <- if (in_range) "No evidence of zero inflation." else "Zero inflation detected."
+          
+          ui_list <- append(ui_list, list(
+            div(
+              style = "background-color:#F5F5F5; color:black; font-size:1.07em; border:1.5px solid #B3B3B3; border-radius:8px; padding:12px 16px; margin-bottom:8px; white-space:pre-line; margin-top:12px;",
+              HTML(detail_text)
+            ),
+            div(
+              style = paste0(
+                "background-color:", color_box,
+                "; color: white; padding: 6px 12px; border-radius: 8px; font-size: 1.12em; font-weight: bold; margin-bottom: 8px; margin-top:10px;"
+              ),
+              status_msg
+            )
+          ))
+        }
+        
+        tagList(ui_list)
+      })
+      
+      
+      
+      
+      
+      
+      
+      
+      
       # ---- Negative Binomial: Diagnostic Plot ----
       observeEvent(input$nb_check, {
         if (is.null(input$nb_file)) {
@@ -6075,7 +7709,7 @@ lmm_vars <- reactive({
         })
       })
 
-      # ---- Negative Binomial: Render Effect Plot (Manual) ----
+      # ---- Negative Binomial: Render Forest Plot (Manual) ----
       
       observeEvent(input$nb_plot, {
         if (is.null(input$nb_file)) {
@@ -6091,7 +7725,7 @@ lmm_vars <- reactive({
           return()
         }
         req(nb_model_data())
-        updateTabsetPanel(session, inputId = "nb_tabs", selected = "Effect Plot")
+        updateTabsetPanel(session, inputId = "nb_tabs", selected = "Forest Plot")
         
         output$nb_effect <- renderPlot({
           df <- nb_model_data()
@@ -6134,9 +7768,9 @@ lmm_vars <- reactive({
       })
       
 
-      # ---- Negative Binomial: Download Effect Plot ----
+      # ---- Negative Binomial: Download Forest Plot ----
       output$nb_download_effect <- downloadHandler(
-        filename = function() paste0("neg_binom_effect_plot_", Sys.Date(), ".png"),
+        filename = function() paste0("neg_binom_forest_plot_", Sys.Date(), ".png"),
         content = function(file) {
           df <- nb_model_data()
           main_effects <- input$nb_indep
@@ -6272,7 +7906,7 @@ lmm_vars <- reactive({
         interact_labels <- sapply(combos, function(x) paste(x, collapse = " : "))
 
         selectizeInput(
-          "multi_interact", "Add interaction term(s):",
+          "multi_interact", "Add interaction term(s) (optional):",
           choices = setNames(sapply(combos, paste, collapse = ":"), interact_labels),
           multiple = TRUE, selected = NULL,
           options = list(placeholder = "Select interaction(s)")
@@ -6297,7 +7931,7 @@ lmm_vars <- reactive({
         req(multi_model_data())
         updateTabsetPanel(session, inputId = "multi_tabs", selected = "Test Result")
 
-        output$multi_result <- renderPrint({
+        output$multi_result <- renderUI({
           df <- multi_model_data()
           main_effects <- input$multi_indep
           interaction_terms <- NULL
@@ -6310,7 +7944,7 @@ lmm_vars <- reactive({
           fml <- as.formula(paste(input$multi_dep, "~", paste(rhs, collapse = " + ")))
           mod <- nnet::multinom(fml, data = df, trace = FALSE)
 
-          broom::tidy(mod, conf.int = TRUE) %>%
+        tbl_mul <- broom::tidy(mod, conf.int = TRUE) %>%
             dplyr::mutate(Sig = dplyr::case_when(
               is.na(p.value) ~ "",
               p.value < 0.001 ~ "***",
@@ -6318,7 +7952,14 @@ lmm_vars <- reactive({
               p.value < 0.05 ~ "*",
               TRUE ~ "NS"
             )) %>%
-            knitr::kable(align = "c", format = "simple")
+            knitr::kable(align = "c", format = "html") %>% 
+          kableExtra::kable_styling(
+            bootstrap_options = c("hover", "condensed", "bordered"),
+            position = "center", full_width = T) %>% 
+          kableExtra::scroll_box(width = "100%", height = "100%")
+        div(style = "margin-top: 15px;",
+            HTML(tbl_mul)
+        )
         })
       })
 
@@ -6349,6 +7990,31 @@ lmm_vars <- reactive({
         df
       })
 
+      
+      # Assumptions notes     
+      output$note_title_mult <- renderUI({
+        req(input$multi_check)
+        fluidRow(
+          column(
+            12,
+            div(
+              style = "display: flex; align-items: center; margin-bottom: 12px; margin-top: 12px;",
+              h4(strong("Tips"), style = "margin: 0;"),
+              tags$span(
+                icon("info-circle", class = "fa-solid"),
+                `data-bs-toggle` = "tooltip",
+                `data-bs-placement` = "right",
+                title = "• If many residual points fall outside the error bounds, add relevant predictors or interaction terms.\n• If the residual Q-Q plot deviates strongly from the diagonal, reconsider model fit or add relevant predictors.\n• If VIF > 10, remove or combine correlated predictors.",
+                class = "no-print",
+                style = "margin-left:8px; color: black; cursor: pointer;"
+              )
+            )
+          )
+        )
+      })
+      
+      
+      
       # ---- Multinomial Regression: Assumption Plot ----
       observeEvent(input$multi_check, {
         if (is.null(input$multi_file)) {
@@ -6406,7 +8072,786 @@ lmm_vars <- reactive({
         },
         contentType = "application/pdf"
       )
-
+      
+      
+##############################################################################################################
+##############################################################################################################
+##############################################################################################################
+##############################################################################################################
+##############################################################################################################
+##############################################################################################################
+##############################################################################################################
+##############################################################################################################
+      
+      ### ---------- Poisson regression -----------####
+      
+      # ---- Poisson: Reactive Data Upload ----
+      poiss_data <- reactive({
+        req(input$poiss_file)
+        readr::read_csv(input$poiss_file$datapath, show_col_types = F) %>%
+          dplyr::select(
+            -dplyr::contains("infant_id", ignore.case = TRUE),
+            -dplyr::contains("infantid", ignore.case = TRUE),
+            -dplyr::contains("sample_id", ignore.case = TRUE),
+            -dplyr::contains("sampleid", ignore.case = TRUE),
+            -dplyr::contains("sample", ignore.case = TRUE),
+            -dplyr::contains("accession", ignore.case = TRUE)
+          )
+      })
+      
+      
+      # ---- Poisson: UI for Dependent Variable ----
+      output$poiss_dep_ui <- renderUI({
+        df <- poiss_data()
+        count_like_vars <- names(df)[sapply(df, function(col) {
+          is.numeric(col) && all(col >= 0, na.rm = TRUE) && all(col == floor(col), na.rm = TRUE)
+        })]
+        
+        tagList(
+          selectInput("poiss_dep", 
+                      tagList(
+                        "Select dependent variable (counts only):",
+                        tags$span(
+                          icon("info-circle", class = "fa-solid"),
+                          `data-bs-toggle` = "tooltip",
+                          `data-bs-placement` = "right",
+                          title = "Note: Only count data are shown. Continuous variables are excluded, as they violate model assumptions. For continuous outcomes, please use LM or LMM instead."
+                        )
+                      ),
+                      choices = c("Select variable" = "", count_like_vars),
+                      selected = ""
+          )
+        )
+      })
+      
+      # ---- Poisson: UI for Independent Variables ----
+      output$poiss_indep_ui <- renderUI({
+        df <- poiss_data()
+        all_vars <- names(df)
+        choices <- setdiff(all_vars, input$poiss_dep)
+        
+        selectizeInput(
+          "poiss_indep",
+          "Select independent variables:",
+          choices = choices,
+          multiple = TRUE,
+          selected = NULL,
+          options = list(placeholder = "Select variable")
+        )
+      })
+      
+      # ---- Poisson: UI for Interactions ----
+      output$poiss_interact_ui <- renderUI({
+        req(input$poiss_indep)
+        if (length(input$poiss_indep) < 2) return(NULL)
+        
+        combos <- combn(input$poiss_indep, 2, simplify = FALSE)
+        interact_labels <- sapply(combos, function(x) paste(x, collapse = " : "))
+        
+        selectizeInput(
+          "poiss_interact", "Add interaction term(s) (optional):",
+          choices = setNames(sapply(combos, paste, collapse = ":"), interact_labels),
+          multiple = TRUE, selected = NULL,
+          options = list(placeholder = "Select interaction(s)")
+        )
+      })
+      
+      
+      # ---- Poisson: Reactive for Final Model Data ----
+      poiss_model_data <- reactive({
+        req(poiss_data(), input$poiss_dep, input$poiss_indep)
+        df <- poiss_data()
+        model_vars <- c(input$poiss_dep, input$poiss_indep)
+        
+        df <- df %>%
+          dplyr::select(all_of(model_vars)) %>%
+          tidyr::drop_na()
+        
+        if (input$poiss_dep %in% input$poiss_indep) {
+          showNotification(strong("Dependent variable cannot be included as independent."), type = "error")
+          return(NULL)
+        }
+        
+        if (length(input$poiss_indep) < 1) {
+          showNotification(strong("Please select at least one independent variable."), type = "error")
+          return(NULL)
+        }
+        
+        df
+      })
+      
+      # ---- Poisson: Run Model and Show Result Table ----
+      observeEvent(input$poiss_run, {
+        if (is.null(input$poiss_file)) {
+          showNotification(strong("Please upload a data file."), type = "error")
+          return()
+        }
+        if (is.null(input$poiss_dep) || input$poiss_dep == "") {
+          showNotification(strong("Please choose dependent variable."), type = "error")
+          return()
+        }
+        if (is.null(input$poiss_indep) || length(input$poiss_indep) < 1) {
+          showNotification(strong("Please choose independent variable(s)."), type = "error")
+          return()
+        }
+        req(poiss_model_data())
+        updateTabsetPanel(session, inputId = "poiss_tabs", selected = "Test Result")
+        
+        output$poiss_result <- renderUI({
+          df <- poiss_model_data()
+          main_effects <- input$poiss_indep
+          interaction_terms <- NULL
+          
+          if (!is.null(input$poiss_interact) && length(input$poiss_interact) > 0) {
+            interaction_terms <- gsub(":", " * ", input$poiss_interact)  # "A:B" becomes "A * B"
+          }
+          
+          rhs <- c(main_effects, interaction_terms)
+          fml <- as.formula(paste(input$poiss_dep, "~", paste(rhs, collapse = " + ")))
+          
+          tbl_poiss <- glm(fml, data = df, family = poisson) %>%
+            broom::tidy(conf.int = TRUE) %>%
+            dplyr::mutate(Sig = dplyr::case_when(
+              is.na(p.value) ~ "",
+              p.value < 0.001 ~ "***",
+              p.value < 0.01 ~ "**",
+              p.value < 0.05 ~ "*",
+              TRUE ~ "NS"
+            )) %>%
+            knitr::kable(align = "c", format = "html") %>%
+            kableExtra::kable_styling(
+              bootstrap_options = c("hover", "condensed", "bordered"),
+              position = "center", full_width = T
+            ) %>%
+            kableExtra::scroll_box(width = "100%", height = "100%")
+          div(style = "margin-top: 15px;",
+              HTML(tbl_poiss)
+          )
+        })
+      })
+      
+      
+      
+      # ---- Poisson: Overdispersion Test Value ----
+      poiss_overdisp_val <- reactive({
+        req(poiss_model_data(), input$poiss_dep, input$poiss_indep)
+        df <- poiss_model_data()
+        main_effects <- input$poiss_indep
+        interaction_terms <- NULL
+        
+        if (!is.null(input$poiss_interact) && length(input$poiss_interact) > 0) {
+          interaction_terms <- gsub(":", " * ", input$poiss_interact)
+        }
+        
+        rhs <- c(main_effects, interaction_terms)
+        fml <- as.formula(paste(input$poiss_dep, "~", paste(rhs, collapse = " + ")))
+        mod <- glm(fml, data = df, family = poisson)
+        result <- performance::check_overdispersion(mod)
+        as.list(result)
+      })
+      
+      
+      # Overdispersion Box/Status
+      output$poiss_overdisp_ui <- renderUI({
+        req(input$poiss_check)
+        val <- poiss_overdisp_val()
+        
+        test_result <- div(
+          style = "background-color:#F5F5F5; color:black; font-size:1em;
+       border:1.5px solid #B3B3B3; border-radius:8px; padding:14px 18px; margin-bottom:8px; white-space:pre-wrap;",
+          paste(capture.output(print(val)), collapse = "\n")
+        )
+        
+        pval <- NA
+        if (!is.null(val) && !is.null(val$p_value) && length(val$p_value) > 0) {
+          pval <- as.numeric(val$p_value)
+        }
+        is_overdisp <- !is.na(pval) && pval < 0.05
+        
+        color_box <- if (is_overdisp) "#B20D00" else "green"
+        status_msg <- if (is_overdisp) "Overdispersion detected." else "No evidence of overdispersion."
+        
+        status_box <- div(
+          style = paste0(
+            "background-color:", color_box,
+            "; color: white; padding: 6px 12px; border-radius: 5px; font-size: 1em; font-weight: bold; margin-bottom: 8px;"
+          ),
+          status_msg
+        )
+        
+        tagList(
+          div(
+            style = "display: flex; align-items: center; margin-bottom: 12px; margin-top: 10px;",
+            h4(strong("Overdispersion Test"), style = "margin: 0;"),
+            tags$span(
+              icon("info-circle", class = "fa-solid"),
+              `data-bs-toggle` = "tooltip",
+              `data-bs-placement` = "right",
+              title = "A formal overdispersion test is provided because, in some cases, diagnostic plots can be ambiguous or not fully clear. This statistical test gives an objective decision about overdispersion, even when the plot is hard to interpret. If overdispersion is detected, please use negative binomial regression instead",
+              class = "no-print",
+              style = "margin-left:8px; color: black; cursor: pointer;"
+            )
+          ),
+          test_result,
+          status_box,
+          br()
+        )
+        
+        
+      })
+      
+      
+      
+      
+      
+      
+      
+      # ---- Poisson: Diagnostic Plot ----
+      observeEvent(input$poiss_check, {
+        if (is.null(input$poiss_file)) {
+          showNotification(strong("Please upload a data file."), type = "error")
+          return()
+        }
+        if (is.null(input$poiss_dep) || input$poiss_dep == "") {
+          showNotification(strong("Please choose dependent variable."), type = "error")
+          return()
+        }
+        if (is.null(input$poiss_indep) || length(input$poiss_indep) < 1) {
+          showNotification(strong("Please choose independent variable(s)."), type = "error")
+          return()
+        }
+        req(poiss_model_data())
+        updateTabsetPanel(session, inputId = "poiss_tabs", selected = "Assumptions")
+        
+        output$poiss_assump <- renderPlot({
+          df <- poiss_model_data()
+          main_effects <- input$poiss_indep
+          interaction_terms <- NULL
+          
+          if (!is.null(input$poiss_interact) && length(input$poiss_interact) > 0) {
+            interaction_terms <- gsub(":", " * ", input$poiss_interact)
+          }
+          
+          rhs <- c(main_effects, interaction_terms)
+          fml <- as.formula(paste(input$poiss_dep, "~", paste(rhs, collapse = " + ")))
+          
+          mod <- glm(fml, data = df, family = poisson)
+          performance::check_model(mod)
+        })
+      })
+      
+      # (Assumptions Tips)
+      output$note_title_poiss <- renderUI({
+        req(input$poiss_check)
+        fluidRow(
+          column(
+            12,
+            div(
+              style = "display: flex; align-items: center; margin-bottom: 12px; margin-top: 12px;",
+              h4(strong("Tips"), style = "margin: 0;"),
+              tags$span(
+                icon("info-circle", class = "fa-solid"),
+                `data-bs-toggle` = "tooltip",
+                `data-bs-placement` = "right",
+                title = "• If observed residual variance (green) does not follow predicted variance (blue), use a negative binomial or zero-inflated model if needed, as this might indicate overdispersion.\n• If the residual Q-Q plot deviates strongly from the diagonal, reconsider model fit or add relevant predictors.\n• If VIF > 10, remove or combine correlated predictors.",
+                class = "no-print",
+                style = "margin-left:8px; color: black; cursor: pointer;"
+              )
+            )
+          )
+        )
+      })
+      
+      # Download assumptions plot
+      output$poiss_download_assump <- downloadHandler(
+        filename = function() paste0("poisson_assumption_plot_", Sys.Date(), ".pdf"),
+        content = function(file) {
+          df <- poiss_model_data()
+          main_effects <- input$poiss_indep
+          interaction_terms <- NULL
+          
+          if (!is.null(input$poiss_interact) && length(input$poiss_interact) > 0) {
+            interaction_terms <- gsub(":", " * ", input$poiss_interact)
+          }
+          
+          rhs <- c(main_effects, interaction_terms)
+          fml <- as.formula(paste(input$poiss_dep, "~", paste(rhs, collapse = " + ")))
+          mod <- glm(fml, data = df, family = poisson)
+          
+          p <- performance::check_model(mod)
+          
+          pdf(file, width = 13, height = 11)
+          print(p)
+          dev.off()
+        },
+        contentType = "application/pdf"
+      )
+      
+      # Forest plot
+      observeEvent(input$poiss_plot, {
+        if (is.null(input$poiss_file)) {
+          showNotification(strong("Please upload a data file."), type = "error")
+          return()
+        }
+        if (is.null(input$poiss_dep) || input$poiss_dep == "") {
+          showNotification(strong("Please choose dependent variable."), type = "error")
+          return()
+        }
+        if (is.null(input$poiss_indep) || length(input$poiss_indep) < 1) {
+          showNotification(strong("Please choose independent variable(s)."), type = "error")
+          return()
+        }
+        req(poiss_model_data())
+        updateTabsetPanel(session, inputId = "poiss_tabs", selected = "Forest Plot")
+        
+        output$poiss_effect <- renderPlot({
+          df <- poiss_model_data()
+          main_effects <- input$poiss_indep
+          interaction_terms <- NULL
+          
+          if (!is.null(input$poiss_interact) && length(input$poiss_interact) > 0) {
+            interaction_terms <- gsub(":", " * ", input$poiss_interact)
+          }
+          
+          rhs <- c(main_effects, interaction_terms)
+          fml <- as.formula(paste(input$poiss_dep, "~", paste(rhs, collapse = " + ")))
+          mod <- glm(fml, data = df, family = poisson)
+          
+          b <- broom::tidy(mod, conf.int = TRUE) %>%
+            dplyr::filter(!is.na(conf.low), !is.na(conf.high), !is.na(estimate)) %>%
+            dplyr::mutate(group = dplyr::case_when(
+              p.value < 0.05 & estimate > 0 ~ "sig_pos",
+              p.value < 0.05 & estimate < 0 ~ "sig_neg",
+              TRUE ~ "NS"
+            )) %>%
+            dplyr::filter(!is.na(conf.low), !is.na(conf.high)) %>%
+            dplyr::filter(term != "(Intercept)")
+          
+          ggplot2::ggplot(b, aes(x = estimate, y = term)) +
+            geom_vline(xintercept = 0, linetype = "dashed") +
+            geom_errorbarh(aes(xmin = conf.low, xmax = conf.high), height = 0.11, size = 0.4, color = "black") +
+            geom_point(aes(fill = group), color = "black", shape = 21, size = 2.5, alpha = 1, show.legend = FALSE) +
+            scale_x_continuous(limits = ~ c(-max(abs(.x)), max(abs(.x))), expand = expansion(mult = 0.1)) +
+            scale_fill_manual(values = c("sig_pos" = "#377EB8", "sig_neg" = "#E41A1C", "NS" = "white")) +
+            labs(x = "Estimate (95% CI)", y = "") +
+            theme_test() +
+            theme(
+              axis.text.x = element_text(size = 12, colour = "black"),
+              axis.title.x = element_text(size = 14, face = "bold"),
+              axis.text.y = element_text(size = 12, colour = "black"),
+              axis.title.y = element_text(size = 14, face = "bold")
+            )
+        })
+      })
+      
+      
+      # Download forest plot
+      output$poiss_download_effect <- downloadHandler(
+        filename = function() paste0("poisson_forest_plot_", Sys.Date(), ".png"),
+        content = function(file) {
+          df <- poiss_model_data()
+          main_effects <- input$poiss_indep
+          interaction_terms <- NULL
+          
+          if (!is.null(input$poiss_interact) && length(input$poiss_interact) > 0) {
+            interaction_terms <- gsub(":", " * ", input$poiss_interact)
+          }
+          
+          rhs <- c(main_effects, interaction_terms)
+          fml <- as.formula(paste(input$poiss_dep, "~", paste(rhs, collapse = " + ")))
+          mod <- glm(fml, data = df, family = poisson)
+          
+          b <- broom::tidy(mod, conf.int = TRUE) %>%
+            dplyr::filter(!is.na(conf.low), !is.na(conf.high), !is.na(estimate)) %>%
+            dplyr::mutate(group = dplyr::case_when(
+              p.value < 0.05 & estimate > 0 ~ "sig_pos",
+              p.value < 0.05 & estimate < 0 ~ "sig_neg",
+              TRUE ~ "NS"
+            )) %>%
+            dplyr::filter(!is.na(conf.low), !is.na(conf.high)) %>%
+            dplyr::filter(term != "(Intercept)")
+          
+          p <- ggplot2::ggplot(b, aes(x = estimate, y = term)) +
+            geom_vline(xintercept = 0, linetype = "dashed") +
+            geom_errorbarh(aes(xmin = conf.low, xmax = conf.high), height = 0.11, size = 0.4, color = "black") +
+            geom_point(aes(fill = group), color = "black", shape = 21, size = 2.5, alpha = 1, show.legend = FALSE) +
+            scale_x_continuous(limits = ~ c(-max(abs(.x)), max(abs(.x))), expand = expansion(mult = 0.1)) +
+            scale_fill_manual(values = c("sig_pos" = "#377EB8", "sig_neg" = "#E41A1C", "NS" = "white")) +
+            labs(x = "Estimate (95% CI)", y = "") +
+            theme_test() +
+            theme(
+              axis.text.x = element_text(size = 12, colour = "black"),
+              axis.title.x = element_text(size = 14, face = "bold"),
+              axis.text.y = element_text(size = 12, colour = "black"),
+              axis.title.y = element_text(size = 14, face = "bold")
+            )
+          
+          ggsave(file, plot = p, width = 7, height = 6, dpi = 600)
+        }
+      )
+      
+##############################################################################################################
+##############################################################################################################
+##############################################################################################################
+##############################################################################################################
+##############################################################################################################
+##############################################################################################################
+##############################################################################################################
+##############################################################################################################
+      
+      ### ---------- Zero-inflated NB regression -----------####
+      
+      # ---- ZINB: Reactive Data Upload ----
+      zinb_data <- reactive({
+        req(input$zinb_file)
+        readr::read_csv(input$zinb_file$datapath, show_col_types = FALSE) %>%
+          dplyr::select(
+            -dplyr::contains("infant_id", ignore.case = TRUE),
+            -dplyr::contains("infantid", ignore.case = TRUE),
+            -dplyr::contains("sample_id", ignore.case = TRUE),
+            -dplyr::contains("sampleid", ignore.case = TRUE),
+            -dplyr::contains("sample", ignore.case = TRUE),
+            -dplyr::contains("accession", ignore.case = TRUE)
+          )
+      })
+      
+      
+      # ---- ZINB: UI for Dependent Variable ----
+      output$zinb_dep_ui <- renderUI({
+        df <- zinb_data()
+        count_like_vars <- names(df)[sapply(df, function(col) {
+          is.numeric(col) && all(col >= 0, na.rm = TRUE) && all(col == floor(col), na.rm = TRUE)
+        })]
+        tagList(
+          selectInput("zinb_dep", 
+                      tagList(
+                        "Select dependent variable (counts only):",
+                        tags$span(
+                          icon("info-circle", class = "fa-solid"),
+                          `data-bs-toggle` = "tooltip",
+                          `data-bs-placement` = "right",
+                          title = "Note: Only count data are shown. Continuous variables are excluded, as they violate model assumptions. For continuous outcomes, please use LM or LMM instead."
+                        )),
+                      choices = c("Select variable" = "", count_like_vars),
+                      selected = "")
+        )
+      })
+      
+      # ---- ZINB: UI for Independent Variables ----
+      output$zinb_indep_ui <- renderUI({
+        df <- zinb_data()
+        all_vars <- names(df)
+        choices <- setdiff(all_vars, input$zinb_dep)
+        selectizeInput(
+          "zinb_indep",
+          "Select independent variables:",
+          choices = choices,
+          multiple = TRUE,
+          selected = NULL,
+          options = list(placeholder = "Select variable")
+        )
+      })
+      
+      # ---- ZINB: UI for Interactions ----
+      output$zinb_interact_ui <- renderUI({
+        req(input$zinb_indep)
+        if (length(input$zinb_indep) < 2) return(NULL)
+        combos <- combn(input$zinb_indep, 2, simplify = FALSE)
+        interact_labels <- sapply(combos, function(x) paste(x, collapse = " : "))
+        selectizeInput(
+          "zinb_interact", "Add interaction term(s) (optional):",
+          choices = setNames(sapply(combos, paste, collapse = ":"), interact_labels),
+          multiple = TRUE, selected = NULL,
+          options = list(placeholder = "Select interaction(s)")
+        )
+      })
+      
+      # ---- ZINB: Reactive for Final Model Data ----
+      zinb_model_data <- reactive({
+        req(zinb_data(), input$zinb_dep, input$zinb_indep)
+        df <- zinb_data()
+        model_vars <- c(input$zinb_dep, input$zinb_indep)
+        df <- df %>%
+          dplyr::select(all_of(model_vars)) %>%
+          tidyr::drop_na()
+        
+        if (input$zinb_dep %in% input$zinb_indep) {
+          showNotification(strong("Dependent variable cannot be included as independent."), type = "error")
+          return(NULL)
+        }
+        if (length(input$zinb_indep) < 1) {
+          showNotification(strong("Please select at least one independent variable."), type = "error")
+          return(NULL)
+        }
+        df
+      })
+      
+      # ---- ZINB: Run Model and Show Result Table ----
+      observeEvent(input$zinb_run, {
+        if (is.null(input$zinb_file)) {
+          showNotification(strong("Please upload a data file."), type = "error")
+          return()
+        }
+        if (is.null(input$zinb_dep) || input$zinb_dep == "") {
+          showNotification(strong("Please choose dependent variable."), type = "error")
+          return()
+        }
+        if (is.null(input$zinb_indep) || length(input$zinb_indep) < 1) {
+          showNotification(strong("Please choose independent variable(s)."), type = "error")
+          return()
+        }
+        req(zinb_model_data())
+        updateTabsetPanel(session, inputId = "zinb_tabs", selected = "Test Result")
+        
+        output$zinb_result <- renderUI({
+          df <- zinb_model_data()
+          main_effects <- input$zinb_indep
+          interaction_terms <- NULL
+          
+          if (!is.null(input$zinb_interact) && length(input$zinb_interact) > 0) {
+            interaction_terms <- gsub(":", " * ", input$zinb_interact)  # "A:B" becomes "A * B"
+          }
+          
+          rhs <- c(main_effects, interaction_terms)
+          fml <- as.formula(paste(input$zinb_dep, "~", paste(rhs, collapse = " + ")))
+          ziform <- as.formula(paste("~", paste(rhs, collapse = " + ")))
+          
+          mod <- glmmTMB::glmmTMB(
+            formula = fml,
+            ziformula = ~ 1,
+            family = glmmTMB::nbinom2,
+            data = df)
+          
+          tbl_zinb <- broom.mixed::tidy(mod, conf.int = TRUE) %>%
+            dplyr::mutate(Sig = dplyr::case_when(
+              is.na(p.value) ~ "",
+              p.value < 0.001 ~ "***",
+              p.value < 0.01 ~ "**",
+              p.value < 0.05 ~ "*",
+              TRUE ~ "NS"
+            )) %>%
+            dplyr::filter(component != "zi") %>% 
+            dplyr::select(- component) %>% 
+            knitr::kable(align = "c", format = "html") %>%
+            kableExtra::kable_styling(
+              bootstrap_options = c("hover", "condensed", "bordered"),
+              position = "center", full_width = TRUE
+            ) %>%
+            kableExtra::scroll_box(width = "100%", height = "100%")
+          
+          div(style = "margin-top: 15px;",
+              HTML(tbl_zinb)
+          )
+        })
+      })
+      
+      # ---- ZINB: Assumptions notes (Tips) ----
+      output$note_title_zinb <- renderUI({
+        req(input$zinb_check)
+        fluidRow(
+          column(
+            12,
+            div(
+              style = "display: flex; align-items: center; margin-bottom: 12px; margin-top: 12px;",
+              h4(strong("Tips"), style = "margin: 0;"),
+              tags$span(
+                icon("info-circle", class = "fa-solid"),
+                `data-bs-toggle` = "tooltip",
+                `data-bs-placement` = "right",
+                title = "• If observed residual variance (green) does not follow predicted variance (blue), consider adding relevant predictors, or interaction terms.\n• If the residual Q-Q plot deviates strongly from the diagonal, reconsider model fit or add relevant predictors.\n• If VIF > 10, remove or combine correlated predictors.",
+                class = "no-print",
+                style = "margin-left:8px; color: black; cursor: pointer;"
+              )
+            )
+          )
+        )
+      })
+      
+      # ---- ZINB: Diagnostic Plot ----
+      observeEvent(input$zinb_check, {
+        if (is.null(input$zinb_file)) {
+          showNotification(strong("Please upload a data file."), type = "error")
+          return()
+        }
+        if (is.null(input$zinb_dep) || input$zinb_dep == "") {
+          showNotification(strong("Please choose dependent variable."), type = "error")
+          return()
+        }
+        if (is.null(input$zinb_indep) || length(input$zinb_indep) < 1) {
+          showNotification(strong("Please choose independent variable(s)."), type = "error")
+          return()
+        }
+        req(zinb_model_data())
+        updateTabsetPanel(session, inputId = "zinb_tabs", selected = "Assumptions")
+        
+        output$zinb_assump <- renderPlot({
+          df <- zinb_model_data()
+          main_effects <- input$zinb_indep
+          interaction_terms <- NULL
+          
+          if (!is.null(input$zinb_interact) && length(input$zinb_interact) > 0) {
+            interaction_terms <- gsub(":", " * ", input$zinb_interact)
+          }
+          
+          rhs <- c(main_effects, interaction_terms)
+          fml <- as.formula(paste(input$zinb_dep, "~", paste(rhs, collapse = " + ")))
+          ziform <- as.formula(paste("~", paste(rhs, collapse = " + ")))
+          
+          mod <- glmmTMB::glmmTMB(
+            formula = fml,
+            ziformula = ~ 1,
+            family = glmmTMB::nbinom2,
+            data = df
+          )
+          performance::check_model(mod)
+        })
+      })
+      
+      # ---- ZINB: Render Forest Plot ----
+      observeEvent(input$zinb_plot, {
+        if (is.null(input$zinb_file)) {
+          showNotification(strong("Please upload a data file."), type = "error")
+          return()
+        }
+        if (is.null(input$zinb_dep) || input$zinb_dep == "") {
+          showNotification(strong("Please choose dependent variable."), type = "error")
+          return()
+        }
+        if (is.null(input$zinb_indep) || length(input$zinb_indep) < 1) {
+          showNotification(strong("Please choose independent variable(s)."), type = "error")
+          return()
+        }
+        req(zinb_model_data())
+        updateTabsetPanel(session, inputId = "zinb_tabs", selected = "Forest Plot")
+        
+        output$zinb_effect <- renderPlot({
+          df <- zinb_model_data()
+          main_effects <- input$zinb_indep
+          interaction_terms <- NULL
+          
+          if (!is.null(input$zinb_interact) && length(input$zinb_interact) > 0) {
+            interaction_terms <- gsub(":", " * ", input$zinb_interact)
+          }
+          
+          rhs <- c(main_effects, interaction_terms)
+          fml <- as.formula(paste(input$zinb_dep, "~", paste(rhs, collapse = " + ")))
+          ziform <- as.formula(paste("~", paste(rhs, collapse = " + ")))
+          
+          mod <- glmmTMB::glmmTMB(
+            formula = fml,
+            ziformula = ~ 1,
+            family = glmmTMB::nbinom2,
+            data = df
+          )
+          
+          b <- broom.mixed::tidy(mod, conf.int = TRUE, effects = "fixed") %>%
+            dplyr::filter(component == "cond", !is.na(conf.low), !is.na(conf.high), !is.na(estimate)) %>%
+            dplyr::mutate(group = dplyr::case_when(
+              p.value < 0.05 & estimate > 0 ~ "sig_pos",
+              p.value < 0.05 & estimate < 0 ~ "sig_neg",
+              TRUE ~ "NS"
+            )) %>%
+            dplyr::filter(term != "(Intercept)")
+          
+          ggplot2::ggplot(b, aes(x = estimate, y = term)) +
+            geom_vline(xintercept = 0, linetype = "dashed") +
+            geom_errorbarh(aes(xmin = conf.low, xmax = conf.high), height = 0.11, size = 0.4, color = "black") +
+            geom_point(aes(fill = group), color = "black", shape = 21, size = 2.5, alpha = 1, show.legend = FALSE) +
+            scale_x_continuous(limits = ~ c(-max(abs(.x)), max(abs(.x))), expand = expansion(mult = 0.1)) +
+            scale_fill_manual(values = c("sig_pos" = "#377EB8", "sig_neg" = "#E41A1C", "NS" = "white")) +
+            labs(x = "Estimate (95% CI)", y = "") +
+            theme_test() +
+            theme(
+              axis.text.x = element_text(size = 12, colour = "black"),
+              axis.title.x = element_text(size = 14, face = "bold"),
+              axis.text.y = element_text(size = 12, colour = "black"),
+              axis.title.y = element_text(size = 14, face = "bold")
+            )
+        })
+      })
+      
+      # ---- ZINB: Download Forest Plot ----
+      output$zinb_download_effect <- downloadHandler(
+        filename = function() paste0("zinb_forest_plot_", Sys.Date(), ".png"),
+        content = function(file) {
+          df <- zinb_model_data()
+          main_effects <- input$zinb_indep
+          interaction_terms <- NULL
+          
+          if (!is.null(input$zinb_interact) && length(input$zinb_interact) > 0) {
+            interaction_terms <- gsub(":", " * ", input$zinb_interact)
+          }
+          
+          rhs <- c(main_effects, interaction_terms)
+          fml <- as.formula(paste(input$zinb_dep, "~", paste(rhs, collapse = " + ")))
+          ziform <- as.formula(paste("~", paste(rhs, collapse = " + ")))
+          
+          mod <- glmmTMB::glmmTMB(
+            formula = fml,
+            ziformula = ~ 1,
+            family = glmmTMB::nbinom2,
+            data = df
+          )
+          
+          b <- broom.mixed::tidy(mod, conf.int = TRUE, effects = "fixed") %>%
+            dplyr::filter(component == "cond", !is.na(conf.low), !is.na(conf.high), !is.na(estimate)) %>%
+            dplyr::mutate(group = dplyr::case_when(
+              p.value < 0.05 & estimate > 0 ~ "sig_pos",
+              p.value < 0.05 & estimate < 0 ~ "sig_neg",
+              TRUE ~ "NS"
+            )) %>%
+            dplyr::filter(term != "(Intercept)")
+          
+          p <- ggplot2::ggplot(b, aes(x = estimate, y = term)) +
+            geom_vline(xintercept = 0, linetype = "dashed") +
+            geom_errorbarh(aes(xmin = conf.low, xmax = conf.high), height = 0.11, size = 0.4, color = "black") +
+            geom_point(aes(fill = group), color = "black", shape = 21, size = 2.5, alpha = 1, show.legend = FALSE) +
+            scale_x_continuous(limits = ~ c(-max(abs(.x)), max(abs(.x))), expand = expansion(mult = 0.1)) +
+            scale_fill_manual(values = c("sig_pos" = "#377EB8", "sig_neg" = "#E41A1C", "NS" = "white")) +
+            labs(x = "Estimate (95% CI)", y = "") +
+            theme_test() +
+            theme(
+              axis.text.x = element_text(size = 12, colour = "black"),
+              axis.title.x = element_text(size = 14, face = "bold"),
+              axis.text.y = element_text(size = 12, colour = "black"),
+              axis.title.y = element_text(size = 14, face = "bold")
+            )
+          
+          ggsave(file, plot = p, width = 7, height = 6, dpi = 600)
+        }
+      )
+      
+      # ---- ZINB: Download Assumption Plot as PDF ----
+      output$zinb_download_assump <- downloadHandler(
+        filename = function() paste0("zinb_assumption_plot_", Sys.Date(), ".pdf"),
+        content = function(file) {
+          df <- zinb_model_data()
+          main_effects <- input$zinb_indep
+          interaction_terms <- NULL
+          
+          if (!is.null(input$zinb_interact) && length(input$zinb_interact) > 0) {
+            interaction_terms <- gsub(":", " * ", input$zinb_interact)
+          }
+          
+          rhs <- c(main_effects, interaction_terms)
+          fml <- as.formula(paste(input$zinb_dep, "~", paste(rhs, collapse = " + ")))
+          ziform <- as.formula(paste("~", paste(rhs, collapse = " + ")))
+          
+          mod <- glmmTMB::glmmTMB(
+            formula = fml,
+            ziformula = ~ 1,
+            family = glmmTMB::nbinom2,
+            data = df
+          )
+          
+          p <- performance::check_model(mod)
+          pdf(file, width = 13, height = 11)
+          print(p)
+          dev.off()
+        },
+        contentType = "application/pdf"
+      )
+      
 
 } # end server
 
