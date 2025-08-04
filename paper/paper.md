@@ -1,5 +1,5 @@
 ---
-title: "`AssumpSure`: a user-friendly R Shiny package for automated validation of statistical assumptions and appropriate test selection"
+title: "AssumpSure: a user-friendly R Shiny package for automated validation of statistical assumptions and appropriate test selection"
 authors:
 - affiliation: 1
   name: Ahmed Bargheet
@@ -41,18 +41,18 @@ For correlations, a tooltip explains the centered log-ratio (CLR) transformation
 
 The package supports independent/paired t-tests, Welch test, one-way ANOVA, Mann-Whitney U, Wilcoxon signed-rank, Kruskal-Wallis, chi-square, Fisher’s exact, linear, logistic, multinomial, Poisson, negative binomial, zero-inflated negative binomial, and mixed-effects models, plus Pearson, Spearman, Kendall, and biweight midcorrelation methods. Post-hoc comparisons (e.g., Tukey HSD, Dunn’s test) and multiple testing corrections (e.g., Benjamini-Hochberg) are included where applicable. Outputs, including p-values, confidence intervals, effect sizes, and publication-ready plots, are exportable in PNG, PDF, or CSV formats for transparent reporting as suggested by researchers [@shatz2024assumption]. `AssumpSure` integrates R libraries like *rstatix* [@kassambara2019rstatix], *performance* [@ludecke2021performance], *lmerTest* [@kuznetsova2015package], *MASS* [@ripley2013package], and *bestNormalize* [@peterson2020package] for robust functionality, with all used package listed in the DESCRIPTION file.
 
-![](paper/figure1.png)
+![](figure1.png)
 Figure 1: The workflow from data upload to test selection, guiding users to switch to the appropriate statistical test.
 
 
 # Illustrative Example
 A researcher uploads a CSV dataset, imported using the readr package [@wickham2024package] with bacterial alpha diversity (Shannon index) across three countries. `AssumpSure` detects variable types, restricting invalid selections (e.g., excluding count variables for ANOVA). Selecting one-way ANOVA triggers normality (Shapiro-Wilk) and homogeneity (Levene’s) checks using the rstatix package [@kassambara2019rstatix], visualized via QQ plots and histograms with ggplot2 [@wickham2011ggplot2] with tooltips implemented using the shiny package [@chang2015package] (which provides the icon() function and HTML integration for Bootstrap tooltips). A red indicator signals non-normality and heterogeneous variances, recommending Kruskal-Wallis (Figure 2). Switching to this test, the user obtains significant results (*p* < 0.05) and effect size using Kruskal-Wallis eta-squared (Figure 3), also based on rstatix [@kassambara2019rstatix]. The user can run Dunn's with p-value correction such as Benjamini-Hochberg based on rstatix R package [@kassambara2019rstatix], and downloading a publication-ready boxplot (Figure 4). This workflow, requiring no coding, ensures valid test selection and transparent reporting for researchers with minimal statistical expertise.
 
-![](paper/figure2.png)
+![](figure2.png)
 Figure 2: The assumption checking report.
-![](paper/figure3.png)
+![](figure3.png)
 Figure 3: Kruskal-Wallis test and effect sizes estimation using Kruskal-Wallis eta-squared.
-![](paper/figure4.png)
+![](figure4.png)
 Figure 4: Dunn test and Wilcoxon r unpaired test for effect size, and publication-ready boxplot.
 
 # Limitations
