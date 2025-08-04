@@ -2125,7 +2125,9 @@ output$levene_text <- renderUI({
     
     # Convenience flags
     failed_normality <- any(!is.na(normality_p) & normality_p <= 0.05)
-    borderline_normality <- any(!is.na(normality_p) & normality_p > 0.05 & normality_p <= 0.10)
+    #borderline_normality <- any(!is.na(normality_p) & normality_p > 0.05 & normality_p <= 0.10)
+    borderline_normality <- all(normality_p > 0.05, na.rm = TRUE) && any(normality_p > 0.05 & normality_p <= 0.10, na.rm = TRUE)
+    
     failed_variance <- !is.na(variance_p) && variance_p <= 0.05
     
     # Case 1: All assumptions passed
