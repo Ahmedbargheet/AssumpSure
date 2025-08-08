@@ -56,7 +56,7 @@ Figure 2: The assumption checking report.
 
 
 
-<p align="center">
+<p align="left">
   <img src="figure3.png" width="90%">
 </p>
 
