@@ -48,11 +48,12 @@ Figure 1: The workflow from data upload to test selection, guiding users to swit
 # Illustrative Example
 A researcher uploads a CSV dataset, imported using the readr package [@wickham2024package] with bacterial alpha diversity (Shannon index) across three countries. `AssumpSure` detects variable types, restricting invalid selections (e.g., excluding count variables for ANOVA). Selecting one-way ANOVA triggers normality (Shapiro-Wilk) and homogeneity (Levene’s) checks using the rstatix package [@kassambara2019rstatix], visualized via QQ plots and histograms with ggplot2 [@wickham2011ggplot2] with tooltips implemented using the shiny package [@chang2015package] (which provides the icon() function and HTML integration for Bootstrap tooltips). A red indicator signals non-normality and heterogeneous variances, recommending Kruskal-Wallis (Figure 2). Switching to this test, the user obtains significant results (*p* < 0.05) and effect size using Kruskal-Wallis eta-squared (Figure 3), also based on rstatix [@kassambara2019rstatix]. The user can run Dunn's with p-value correction such as Benjamini-Hochberg based on rstatix R package [@kassambara2019rstatix], and downloading a publication-ready boxplot (Figure 4). This workflow, requiring no coding, ensures valid test selection and transparent reporting for researchers with minimal statistical expertise.
 
-<p align="center">
-  <img src="figure2.png" width="90%">
-</p>
 
-<p align="center"><b>Figure 2:</b> The assumption checking report.</p>
+
+
+![](figure2.png)
+Figure 2: The assumption checking report.
+
 
 
 ![](figure3.png)
