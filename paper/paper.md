@@ -1,23 +1,23 @@
 ---
-title: "AssumpSure: a user-friendly R Shiny package for automated validation of statistical assumptions and appropriate test selection"
+title: "AssumpSure: a user‑friendly R Shiny package for automated validation of statistical assumptions and appropriate test selection"
 authors:
-- affiliation: "1"
-  name: Ahmed Bargheet
-  orcid: 0000-0002-0363-0249
-  corresponding: true
-date: 04 August 2025
+  - name: Ahmed Bargheet
+    orcid: 0000‑0002‑0363‑0249
+    affiliation: "1"
+    corresponding: true
+date: 4 August 2025
 bibliography: paper.bib
 citation_author: Bargheet
 tags:
-- R Shiny
-- statistical assumptions
-- test selection
-- continuous data tests
-- regression
-- correlation
+  - R Shiny
+  - statistical assumptions
+  - test selection
+  - continuous data tests
+  - regression
+  - correlation
 affiliations:
-- name:  Host-Microbe Interactions Research Group, Department of Medical Biology, UiT The Arctic University of Norway, Tromsø, Norway
-- index: 1
+  - index: 1
+    name: Host‑Microbe Interactions Research Group, Department of Medical Biology, UiT The Arctic University of Norway, Tromsø, Norway
 journal: JOSS
 link-citations: yes
 ---
