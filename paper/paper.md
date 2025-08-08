@@ -1,11 +1,11 @@
 ---
 title: "AssumpSure: a user-friendly R Shiny package for automated validation of statistical assumptions and appropriate test selection"
 authors:
-- affiliation: 1
+- affiliation: "1"
   name: Ahmed Bargheet
   orcid: 0000-0002-0363-0249
   corresponding: true
-date: "04 August 2025"
+date: 04 August 2025
 bibliography: paper.bib
 citation_author: Bargheet
 tags:
