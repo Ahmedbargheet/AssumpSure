@@ -51,8 +51,12 @@ A researcher uploads a CSV dataset, imported using the readr package [@wickham20
 ![](figure2.png)
 Figure 2: The assumption checking report.
 
-![](figure3.png)
-Figure 3: Kruskal-Wallis test and effect sizes estimation using Kruskal-Wallis eta-squared.
+<p align="center">
+  <img src="figure3.png" width="90%">
+</p>
+
+<p align="left"><b>Figure 3:</b> Kruskal-Wallis test and effect sizes estimation using Kruskal-Wallis eta-squared.</p>
+
 
 ![](figure4.png)
 Figure 4: Dunn test and Wilcoxon r unpaired test for effect size, and publication-ready boxplot.
