@@ -6057,7 +6057,7 @@ output$cor_matrix_download_ui <- renderUI({
       if (is.na(pval)) return(NULL)
       if (pval > 0.10) {
         color <- "green"
-        msg <- paste0("✓ Normality (Shapiro-Wilk test,; p = ", format.pval(pval, digits = 3), ") ")
+        msg <- paste0("✓ Normality (Shapiro-Wilk test; p = ", format.pval(pval, digits = 3), ") ")
       } else if (pval > 0.05 && pval <= 0.10) {
         color <- "#ffc107"
         msg <- paste0("! Borderline normality (Shapiro-Wilk test; p = ", format.pval(pval, digits = 3), ") ", location)
