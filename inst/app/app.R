@@ -6055,21 +6055,31 @@ output$cor_matrix_download_ui <- renderUI({
     
     shapiro_square <- function(pval, location = "") {
       if (is.na(pval)) return(NULL)
+      
       if (pval > 0.10) {
         color <- "green"
+        font_color <- "white"
         msg <- paste0("✓ Normality (Shapiro-Wilk test; p = ", format.pval(pval, digits = 3), ") ")
       } else if (pval > 0.05 && pval <= 0.10) {
         color <- "#ffc107"
-        msg <- paste0("! Borderline normality (Shapiro-Wilk test; p = ", format.pval(pval, digits = 3), ") ", location)
+        font_color <- "black"   # yellow background → black text
+        msg <- paste0("! Borderline normality (Shapiro-Wilk test; p = ", format.pval(pval, digits = 3), ")")
       } else {
         color <- "#B20D00"
+        font_color <- "white"
         msg <- paste0("✗ Not normal (Shapiro-Wilk test; p = ", format.pval(pval, digits = 3), ") ")
       }
+      
       div(
-        style = paste0("background-color:", color, "; color: white; padding: 10px; border-radius: 7px; font-size: 1em; margin-top: 8px; margin-bottom: 4px; text-align: center;"),
+        style = paste0(
+          "background-color:", color, 
+          "; color:", font_color, 
+          "; padding: 10px; border-radius: 7px; font-size: 1em; margin-top: 8px; margin-bottom: 4px; text-align: center;"
+        ),
         strong(msg)
       )
     }
+    
     
     
     
