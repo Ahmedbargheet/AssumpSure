@@ -4179,6 +4179,13 @@ output$boxplot_ui <- renderUI({
       session$sendCustomMessage("reinit-tooltips", list())
     }, once = FALSE)
   })
+  
+  # Helper: did outlier screen pass?
+  cor_outliers_passed <- reactive({
+    res <- car_outliers_val()
+    is.list(res) && !is.null(res$status) && identical(res$status, "clean")
+  })
+  
 
 
 # Data Loading & Numeric Feature Detection
@@ -4496,12 +4503,51 @@ output$boxplot_ui <- renderUI({
     mvn_ok_val(mvn_ok)
 
 
-    # --- Outliers (car::outlierTest)
+    # --- Outliers (Mahalanobis bivariate screen for Pearson)
     lm_model <- lm(v2 ~ v1)
-    car_outliers <- tryCatch({
-      car::outlierTest(lm_model)
-    }, error = function(e) NULL)
-    car_outliers_val(car_outliers)
+    alpha_out <- 0.01
+    df2_maha <- df %>%
+      dplyr::select(all_of(input$cor_features)) %>%
+      stats::na.omit() %>%
+      as.data.frame()
+    
+    if (nrow(df2_maha) < 5) {
+      car_outliers_val(list(
+        status = "na",
+        alpha = alpha_out,
+        n = NA_integer_,
+        idx = integer(0),
+        D2 = numeric(0),
+        p = numeric(0),
+        message = "Screen not applicable: fewer than 5 complete observations."
+      ))
+    } else {
+      S <- stats::cov(df2_maha)
+      if (!is.finite(det(S)) || abs(det(S)) < .Machine$double.eps) {
+        car_outliers_val(list(
+          status = "na",
+          alpha = alpha_out,
+          n = NA_integer_,
+          idx = integer(0),
+          D2 = numeric(0),
+          p = numeric(0),
+          message = "Screen not applicable: singular covariance."
+        ))
+      } else {
+        D2 <- stats::mahalanobis(df2_maha, colMeans(df2_maha), S)
+        pvals <- stats::pchisq(D2, df = 2, lower.tail = FALSE)
+        idx <- which(pvals < alpha_out)
+        car_outliers_val(list(
+          status = if (length(idx) > 0) "outliers" else "clean",
+          alpha = alpha_out,
+          n = length(idx),
+          idx = idx,
+          D2 = D2[idx],
+          p = pvals[idx],
+          message = NULL
+        ))
+      }
+    }
 
     # --- Homoscedasticity
     perf_het <- tryCatch({
@@ -4555,7 +4601,7 @@ output$boxplot_ui <- renderUI({
     class='fa-solid fa-circle-info'
     data-bs-toggle='tooltip'
     data-bs-placement='right'
-    title='This scatterplot shows the relationship between the two selected variables. The red line is a linear regression fit. If points follow the line, the relationship is linear.'
+    title='This scatterplot shows the relationship between the two selected variables. The red line represents a linear regression fit. If the points closely follow the line, the linearity assumption is reasonable; large deviations suggest the assumption may not hold.'
     style='color:#2c3e50; cursor:pointer; font-size:16px; margin-left:10px;'></i>"))
         ),
         fluidRow(
@@ -4617,43 +4663,19 @@ output$boxplot_ui <- renderUI({
 
 
         # 4. Outliers
-        h5(strong("4. Outlier Test")),
-        uiOutput("cor_outlier_text"),
+        # 4. Mahalanobis Outlier Test (Bivariate)
         div(
-          style = paste0(
-            "background-color:",
-            {
-              if (is.null(car_outliers_val())) {
-                "green"
-              } else if (inherits(car_outliers_val(), "outlierTest")) {
-                "green"
-              } else if (is.data.frame(car_outliers_val()) &&
-                         "Bonferroni p" %in% colnames(car_outliers_val()) &&
-                         isTRUE(any(!is.na(car_outliers_val()[,"Bonferroni p"]))) &&
-                         isTRUE(any(car_outliers_val()[,"Bonferroni p"] <= 0.05))) {
-                "#B20D00"
-              } else {
-                "green"
-              }
-            },
-            "; color: white; padding: 5px; border-radius: 5px;"
-          ),
-          {
-            if (is.null(car_outliers_val())) {
-              "No significant outliers detected."
-            } else if (inherits(car_outliers_val(), "outlierTest")) {
-              "No significant outliers detected."
-            } else if (is.data.frame(car_outliers_val()) &&
-                       "Bonferroni p" %in% colnames(car_outliers_val()) &&
-                       isTRUE(any(!is.na(car_outliers_val()[,"Bonferroni p"]))) &&
-                       isTRUE(any(car_outliers_val()[,"Bonferroni p"] <= 0.05))) {
-              "Potential outliers detected."
-            } else {
-              "No significant outliers detected."
-            }
-          }
+          h5(HTML("<b>4. Mahalanobis Outlier Test (Bivariate)</b> <i
+    class='fa-solid fa-circle-info'
+    data-bs-toggle='tooltip'
+    data-bs-placement='right'
+    title='Points are flagged as outliers if their probability is below α (default 0.01). A stricter 0.01 cutoff is used instead of 0.05 to reduce false positives, so only strong outliers are flagged.'
+    style='color:#2c3e50; cursor:pointer; font-size:16px; margin-left:10px;'></i>"))
         ),
-        br(),
+        uiOutput("cor_outlier_text"),
+        uiOutput("cor_outlier_badge"),
+        br()
+        ,
 
 
 
@@ -4760,20 +4782,54 @@ output$boxplot_ui <- renderUI({
     
 
     output$cor_outlier_text <- renderUI({
-      if (!is.null(car_outliers)) {
-        div(
-          style = "background-color:#F5F5F5; color:black; font-size:1em;
-               border:1.5px solid #B3B3B3; border-radius:8px; padding:14px 18px; margin-bottom:8px; white-space:pre-wrap;",
-          paste(capture.output(print(car_outliers)), collapse = "\n")
-        )
-      } else {
-        div(
+      res <- car_outliers_val()
+      if (is.null(res)) return(NULL)
+      if (identical(res$status, "na")) {
+        return(div(
           style = "background-color:#F5F5F5; color:black; font-size:1em;
                border:1.5px solid #B3B3B3; border-radius:8px; padding:14px 18px; margin-bottom:8px;",
-          "No outliers detected or not applicable."
-        )
+          res$message
+        ))
       }
+      if (identical(res$status, "clean")) {
+        return(div(
+          style = "background-color:#F5F5F5; color:black; font-size:1em;
+               border:1.5px solid #B3B3B3; border-radius:8px; padding:14px 18px; margin-bottom:8px;",
+          sprintf("No bivariate outliers detected at α = %.3f.", res$alpha)
+        ))
+      }
+      # outliers detected
+      tbl <- NULL
+      if (!is.null(res$idx) && length(res$idx) > 0) {
+        tbl <- data.frame(
+          row_id = res$idx,
+          D2 = signif(res$D2, 4),
+          p_value = signif(res$p, 4)
+        )
+        tbl_html <- knitr::kable(tbl, align = "c", format = "html") %>% 
+          kableExtra::kable_styling(bootstrap_options = c("hover", "condensed", "bordered"),
+                                    position = "center", full_width = TRUE) %>% 
+          kableExtra::scroll_box(width = "100%", height = "100%")
+      }
+      div(
+        style = "background-color:#F5F5F5; color:black; font-size:1em;
+             border:1.5px solid #B3B3B3; border-radius:8px; padding:14px 18px; margin-bottom:8px;",
+        HTML(sprintf("Outliers detected at α = %.3f (n = %d). Even a few points can bias Pearson.",
+                     res$alpha, res$n)),
+        if (!is.null(tbl)) HTML(tbl_html)
+      )
     })
+    
+    output$cor_outlier_badge <- renderUI({
+      res <- car_outliers_val()
+      if (is.null(res)) return(NULL)
+      bg <- if (identical(res$status, "clean")) "green" else if (identical(res$status, "outliers")) "#B20D00" else "#666666"
+      msg <- if (identical(res$status, "clean")) "No outliers detected."
+      else if (identical(res$status, "outliers")) "Outliers detected."
+      else "Screen not applicable."
+      div(style = paste0("background-color:", bg, "; color:white; padding:5px; border-radius:5px;"), msg)
+    })
+    
     
     output$cor_het_text <- renderUI({
       if (!is.null(perf_het)) {
@@ -4799,12 +4855,7 @@ output$boxplot_ui <- renderUI({
     pass_normality <- safe_shapiro_pval(shap1_val()) && safe_shapiro_pval(shap2_val()) &&
       shap1_val()$p.value > 0.05 && shap2_val()$p.value > 0.05
     pass_bivnorm  <- !is.na(mvn_p_val()) && isTRUE(mvn_ok_val())
-    pass_outliers <- is.null(car_outliers_val()) ||
-      (inherits(car_outliers_val(), "outlierTest")) ||
-      (is.data.frame(car_outliers_val()) &&
-         "Bonferroni p" %in% colnames(car_outliers_val()) &&
-         (isTRUE(all(is.na(car_outliers_val()[,"Bonferroni p"]))) ||
-            isTRUE(all(car_outliers_val()[,"Bonferroni p"] > 0.05))))
+    pass_outliers <- isTRUE(cor_outliers_passed())
 
     pass_het <- {
       ph <- perf_het_val()
@@ -4950,12 +5001,8 @@ output$boxplot_ui <- renderUI({
       pass_normality <- safe_shapiro_pval(shap1_val()) && safe_shapiro_pval(shap2_val()) &&
         shap1_val()$p.value > 0.05 && shap2_val()$p.value > 0.05
       pass_bivnorm  <- !is.na(mvn_p_val()) && isTRUE(mvn_ok_val())
-      pass_outliers <- is.null(car_outliers_val()) ||
-        (inherits(car_outliers_val(), "outlierTest")) ||
-        (is.data.frame(car_outliers_val()) &&
-           "Bonferroni p" %in% colnames(car_outliers_val()) &&
-           (isTRUE(all(is.na(car_outliers_val()[,"Bonferroni p"]))) ||
-              isTRUE(all(car_outliers_val()[,"Bonferroni p"] > 0.05))))
+      pass_outliers <- isTRUE(cor_outliers_passed())
+      
       pass_het <- {
         ph <- perf_het_val()
         pval <- NULL
@@ -5023,12 +5070,8 @@ output$boxplot_ui <- renderUI({
       pass_normality <- safe_shapiro_pval(shap1_val()) && safe_shapiro_pval(shap2_val()) &&
         shap1_val()$p.value > 0.05 && shap2_val()$p.value > 0.05
       pass_bivnorm <- !is.na(mvn_p_val()) && isTRUE(mvn_ok_val())
-      pass_outliers <- is.null(car_outliers_val()) ||
-        (inherits(car_outliers_val(), "outlierTest")) ||
-        (is.data.frame(car_outliers_val()) &&
-           "Bonferroni p" %in% colnames(car_outliers_val()) &&
-           (all(is.na(car_outliers_val()[,"Bonferroni p"])) ||
-              all(car_outliers_val()[,"Bonferroni p"] > 0.05)))
+      pass_outliers <- isTRUE(cor_outliers_passed())
+      
       pass_het <- {
         ph <- perf_het_val()
         pval <- NULL
@@ -5140,12 +5183,8 @@ output$boxplot_ui <- renderUI({
       pass_normality <- safe_shapiro_pval(shap1_val()) && safe_shapiro_pval(shap2_val()) &&
         shap1_val()$p.value > 0.05 && shap2_val()$p.value > 0.05
       pass_bivnorm <- !is.na(mvn_p_val()) && isTRUE(mvn_ok_val())
-      pass_outliers <- is.null(car_outliers_val()) ||
-        (inherits(car_outliers_val(), "outlierTest")) ||
-        (is.data.frame(car_outliers_val()) &&
-           "Bonferroni p" %in% colnames(car_outliers_val()) &&
-           (isTRUE(all(is.na(car_outliers_val()[,"Bonferroni p"]))) ||
-              isTRUE(all(car_outliers_val()[,"Bonferroni p"] > 0.05))))
+      pass_outliers <- isTRUE(cor_outliers_passed())
+      
       pass_het <- {
         ph <- perf_het_val()
         pval <- NULL
@@ -5218,12 +5257,8 @@ output$cor_matrix_download <- downloadHandler(
       pass_normality <- safe_shapiro_pval(shap1_val()) && safe_shapiro_pval(shap2_val()) &&
         shap1_val()$p.value > 0.05 && shap2_val()$p.value > 0.05
       pass_bivnorm  <- !is.na(mvn_p_val()) && isTRUE(mvn_ok_val())
-      pass_outliers <- is.null(car_outliers_val()) ||
-        (inherits(car_outliers_val(), "outlierTest")) ||
-        (is.data.frame(car_outliers_val()) &&
-           "Bonferroni p" %in% colnames(car_outliers_val()) &&
-           (all(is.na(car_outliers_val()[,"Bonferroni p"])) ||
-              all(car_outliers_val()[,"Bonferroni p"] > 0.05)))
+      pass_outliers <- isTRUE(cor_outliers_passed())
+      
       pass_het <- {
         ph <- perf_het_val()
         pval <- NULL
@@ -5263,12 +5298,8 @@ output$cor_matrix_download_ui <- renderUI({
     pass_normality <- safe_shapiro_pval(shap1_val()) && safe_shapiro_pval(shap2_val()) &&
       shap1_val()$p.value > 0.05 && shap2_val()$p.value > 0.05
     pass_bivnorm  <- !is.na(mvn_p_val()) && isTRUE(mvn_ok_val())
-    pass_outliers <- is.null(car_outliers_val()) ||
-      (inherits(car_outliers_val(), "outlierTest")) ||
-      (is.data.frame(car_outliers_val()) &&
-         "Bonferroni p" %in% colnames(car_outliers_val()) &&
-         (all(is.na(car_outliers_val()[,"Bonferroni p"])) ||
-            all(car_outliers_val()[,"Bonferroni p"] > 0.05)))
+    pass_outliers <- isTRUE(cor_outliers_passed())
+    
     pass_het <- {
       ph <- perf_het_val()
       pval <- NULL
@@ -5592,12 +5623,8 @@ output$cor_matrix_download_ui <- renderUI({
         pass_normality <- safe_shapiro_pval(shap1_val()) && safe_shapiro_pval(shap2_val()) &&
           shap1_val()$p.value > 0.05 && shap2_val()$p.value > 0.05
         pass_bivnorm  <- !is.na(mvn_p_val()) && isTRUE(mvn_ok_val())
-        pass_outliers <- is.null(car_outliers_val()) ||
-          (inherits(car_outliers_val(), "outlierTest")) ||
-          (is.data.frame(car_outliers_val()) &&
-             "Bonferroni p" %in% colnames(car_outliers_val()) &&
-             (all(is.na(car_outliers_val()[,"Bonferroni p"])) ||
-                all(car_outliers_val()[,"Bonferroni p"] > 0.05)))
+        pass_outliers <- isTRUE(cor_outliers_passed())
+        
         pass_het <- {
           ph <- perf_het_val()
           pval <- NULL
