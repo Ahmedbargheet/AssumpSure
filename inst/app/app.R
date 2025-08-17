@@ -1081,11 +1081,45 @@ server <- function(input, output, session) {
     req(df)
     
     # Continuous: numeric with many unique values
-    numeric_vars <- names(df)[sapply(df, function(col) {
-      is.numeric(col) &&
-        length(unique(col)) > 10 &&
-        any(col %% 1 != 0, na.rm = TRUE)  # Exclude if all values are integers
-    })]
+    # Continuous = numeric, not an ID, enough variety; be conservative with whole-number integers
+    numeric_vars <- names(df)[vapply(seq_along(df), function(i) {
+      col <- df[[i]]
+      nm  <- tolower(names(df)[i])
+      
+      if (!is.numeric(col)) return(FALSE)
+      x <- col[is.finite(col)]
+      n <- length(x); if (n < 3) return(FALSE)
+      u <- length(unique(x)); ur <- if (n > 0) u / n else 0
+      all_int <- all(abs(x - round(x)) < 1e-9)
+      
+      # 1) Drop obvious IDs by name or near-sequence
+      if (grepl("\\b(id|row|index)\\b", nm)) return(FALSE)
+      if (u == n && all_int && all(diff(sort(x)) == 1)) return(FALSE)  # strictly sequential unique integers
+      
+      # 1b) Drop integer ladders with low duplicates (e.g., 1,1,2,2,3,3,...)
+      if (all_int) {
+        uni <- sort(unique(x))
+        if (length(uni) >= 8 && all(diff(uni) == 1)) {
+          freq <- as.numeric(table(x))
+          if (median(freq) <= 2 && max(freq) <= 3) return(FALSE)
+        }
+      }
+      
+      # 2) Drop count-like integers with high uniqueness at small n
+      if (all_int && min(x, na.rm = TRUE) >= 0) {
+        freq <- table(x)
+        prop_singletons <- mean(freq == 1)   # share of values that appear once
+        if ((ur >= 0.8 || prop_singletons >= 0.7) && n <= 50) return(FALSE)
+      }
+      
+      # 3) Drop few-level integers → likely counts/ordinal
+      if (all_int && (u <= 5 || ur < 0.35)) return(FALSE)
+      
+      # 4) Keep if enough distinct values relative to n
+      return(u >= min(8, ceiling(0.5 * n)))
+    }, logical(1))]
+    
+    
     
     # Categorical: factor or character with few unique values
     cat_vars <- names(df)[sapply(df, function(col) {
@@ -1214,7 +1248,7 @@ server <- function(input, output, session) {
     }
   })
 
-
+  
   # reset Welch ANOVA
   observeEvent(input$file, { welch_anova_clicked(FALSE) })
   observeEvent(input$test_type, { welch_anova_clicked(FALSE) })
@@ -1363,6 +1397,9 @@ server <- function(input, output, session) {
   
   observeEvent(input$file, { welch_clicked(FALSE) })
   observeEvent(input$check_assumptions, { welch_clicked(FALSE) })
+  
+  
+  
   
 
  # Run the Post hoc test
@@ -1825,24 +1862,36 @@ output$levene_text <- renderUI({
 
   # One-way ANOVA
   qq_plot_anova <- function(df) {
-    ggplot2::ggplot(df, aes(sample = value, color = group)) +
-      stat_qq() +
-      stat_qq_line(color = "#E41A1C") +
-      theme_test() +
-      scale_color_brewer(palette = "Set2") +
-      facet_wrap(~group) +
-      theme(strip.text = element_text(size = 12, face = "bold", color = "black")) + 
-      theme(strip.background = element_rect(colour = "black", fill = "white")) + 
-      theme(axis.title.x = element_text(colour = "black", face="bold", size = 12)) +
-      theme(axis.title.y = element_text(colour = "black", face="bold", size = 12)) + 
-      theme(axis.text.x = element_text(colour = "black", size = 10)) +
-      theme(axis.text.y = element_text(colour = "black", size = 10)) +
-      xlab("Theoretical Quantiles") + 
-      ylab("Sample Quantiles") + 
-      theme(legend.position = "none") +
-      theme(plot.background = element_rect(fill = "white"))
+    df <- df %>% dplyr::filter(!is.na(group))
+    df$group <- droplevels(factor(df$group))
+    n_groups <- nlevels(df$group)
+    
+    # Choose palette: Set2 up to 8 groups, otherwise default hues
+    if (n_groups <= 8) {
+      pal_color <- ggplot2::scale_color_brewer(palette = "Set2")
+    } else {
+      cols <- scales::hue_pal()(n_groups)
+      pal_color <- ggplot2::scale_color_manual(values = cols)
+    }
+    
+    ggplot2::ggplot(df, ggplot2::aes(sample = value, color = group)) +
+      ggplot2::stat_qq() +
+      ggplot2::stat_qq_line(color = "#E41A1C") +
+      ggplot2::theme_test() +
+      pal_color +
+      ggplot2::facet_wrap(~group) +
+      ggplot2::theme(strip.text = ggplot2::element_text(size = 12, face = "bold", color = "black"),
+                     strip.background = ggplot2::element_rect(colour = "black", fill = "white"),
+                     axis.title.x = ggplot2::element_text(colour = "black", face = "bold", size = 12),
+                     axis.title.y = ggplot2::element_text(colour = "black", face = "bold", size = 12),
+                     axis.text.x  = ggplot2::element_text(colour = "black", size = 10),
+                     axis.text.y  = ggplot2::element_text(colour = "black", size = 10),
+                     legend.position = "none",
+                     plot.background = ggplot2::element_rect(fill = "white")) +
+      ggplot2::xlab("Theoretical Quantiles") + 
+      ggplot2::ylab("Sample Quantiles")
   }
-  # q_plot_anova <- function(df) { ... }
+
 
 
   # --- Refactored QQ Plot renderPlot using switch ---
@@ -1909,24 +1958,38 @@ output$levene_text <- renderUI({
 
   # One-way ANOVA
   histogram_plot_anova <- function(df) {
-    ggplot2::ggplot(df, aes(x = value, fill = group, colour = group)) +
-      geom_histogram(aes(y = after_stat(density)), bins = 30, color = "black", alpha = 0.7) +
-      geom_density(color = "#b2182b", size = 1.2, alpha = 0.7, show.legend = FALSE) +
-      theme_test() +
-      scale_color_brewer(palette = "Set2") +
-      scale_fill_brewer(palette = "Set2") +
-      facet_wrap(~group) +
-      theme(strip.text = element_text(size = 12, face = "bold",color = "black")) + 
-      theme(strip.background = element_rect(colour = "black", fill = "white")) + 
-      theme(axis.title.x = element_text(colour = "black", face="bold", size = 12)) +
-      theme(axis.title.y = element_text(colour = "black", face="bold", size = 12)) + 
-      theme(axis.text.x = element_text(colour = "black", size = 10)) +
-      theme(axis.text.y = element_text(colour = "black", size = 10)) +
-      xlab("Value") + 
-      ylab("Density") +
-      theme(legend.position = "none") +
-      theme(plot.background = element_rect(fill = "white"))
+    df <- df %>% dplyr::filter(!is.na(group))
+    df$group <- droplevels(factor(df$group))
+    n_groups <- nlevels(df$group)
+    
+    # Choose palette: Set2 up to 8 groups, otherwise default ggplot hues
+    if (n_groups <= 8) {
+      pal_fill  <- ggplot2::scale_fill_brewer(palette = "Set2")
+      pal_color <- ggplot2::scale_color_brewer(palette = "Set2")
+    } else {
+      cols <- scales::hue_pal()(n_groups)
+      pal_fill  <- ggplot2::scale_fill_manual(values = cols)
+      pal_color <- ggplot2::scale_color_manual(values = cols)
+    }
+    
+    ggplot2::ggplot(df, ggplot2::aes(x = value, fill = group, colour = group)) +
+      ggplot2::geom_histogram(ggplot2::aes(y = after_stat(density)), bins = 30, color = "black", alpha = 0.7) +
+      ggplot2::geom_density(color = "#b2182b", size = 1.2, alpha = 0.7, show.legend = FALSE) +
+      ggplot2::theme_test() +
+      pal_color + pal_fill +
+      ggplot2::facet_wrap(~group) +
+      ggplot2::theme(strip.text = ggplot2::element_text(size = 12, face = "bold", color = "black"),
+                     strip.background = ggplot2::element_rect(colour = "black", fill = "white"),
+                     axis.title.x = ggplot2::element_text(colour = "black", face = "bold", size = 12),
+                     axis.title.y = ggplot2::element_text(colour = "black", face = "bold", size = 12),
+                     axis.text.x  = ggplot2::element_text(colour = "black", size = 10),
+                     axis.text.y  = ggplot2::element_text(colour = "black", size = 10),
+                     legend.position = "none",
+                     plot.background = ggplot2::element_rect(fill = "white")) +
+      ggplot2::xlab("Value") + 
+      ggplot2::ylab("Density")
   }
+  
 
   # --- Modular renderPlot for Histogram ---
   output$histogram_plot <- renderPlot({
@@ -2217,8 +2280,8 @@ output$levene_text <- renderUI({
     }
     group_sizes <- table(df$group)
     if (any(group_sizes < 2)) {
-      showNotification(strong("All groups must have at least 2 values for Levene's test."), 
-                       type = "error")
+      showNotification(strong("Levene’s test requires each group to have at least 2 values."), 
+                       type = "error", duration = 10)
       return(NULL)
     }
     df %>% rstatix::levene_test(value ~ group)
@@ -2240,7 +2303,7 @@ output$levene_text <- renderUI({
     }
     group_sizes <- table(df$group)
     if (any(group_sizes < 3) | any(group_sizes > 5000)) {
-      showNotification(strong("All groups must have between 3 and 5000 values for normality testing (Shapiro-Wilk)."), type = "error")
+      showNotification(strong("Shapiro–Wilk test needs 3-5000 values per group; groups outside this range cannot be tested."), type = "error", duration = 10)
       return(NULL)
     }
     df %>% dplyr::group_by(group) %>% rstatix::shapiro_test(value)
@@ -2269,21 +2332,35 @@ output$levene_text <- renderUI({
     rstatix::shapiro_test(diff)
   }
 
+  
+  # ---- add once near top of server() ----
+  SHAPIRO_MSG_ID_ANOVA <- "shapiro_msg_anova"
+  shapiro_msg_anova_shown <- reactiveVal(FALSE)
+  
+  # reset the flag when user (re)runs ANOVA checks
+  observeEvent(list(input$test_type, input$check_assumptions), {
+    if (identical(input$test_type, "anova")) {
+      shapiro_msg_anova_shown(FALSE)
+      removeNotification(SHAPIRO_MSG_ID_ANOVA, session = session)
+    }
+  })
+  
 
   ## ANOVA Shapiro result
   shapiro_result_anova <- function(df) {
     if (all(is.na(df$group))) {
       showNotification(strong("Group column contains only NA. Please select a valid grouping variable."), 
-                       type = "error")
+                       type = "error", id = SHAPIRO_MSG_ID_ANOVA)
       return(NULL)
     }
     if (nlevels(df$group) < 2) {
-      showNotification(strong("Grouping variable must have at least 2 groups."), type = "error")
+      showNotification(strong("Grouping variable must have at least 2 groups."), type = "error", 
+                       id = SHAPIRO_MSG_ID_ANOVA)
       return(NULL)
     }
     group_sizes <- table(df$group)
     if (any(group_sizes < 3) | any(group_sizes > 5000)) {
-      showNotification(strong("All groups must have between 3 and 5000 values for normality testing (Shapiro-Wilk)."), type = "error")
+      showNotification(strong("Shapiro–Wilk test needs 3-5000 values per group; groups outside this range cannot be tested."), type = "error", duration = 10, id = SHAPIRO_MSG_ID_ANOVA)
       return(NULL)
     }
     df %>% dplyr::group_by(group) %>% rstatix::shapiro_test(value)
@@ -2829,6 +2906,7 @@ run_wilcoxon_signed_test <- function(df) {
   output$welch_result <- renderUI({
     req(welch_clicked())
     df <- processed_data()
+    if (is.null(df)) return(NULL)
     res <- run_welch_test(df)
     res_tbl <- res %>% 
       knitr::kable(format = "html", align = "c") %>%
@@ -4431,7 +4509,7 @@ output$boxplot_ui <- renderUI({
           style = "background-color: #fff3cd; color: #856404; padding: 14px; border: 1px solid #ffeeba; border-radius: 5px; font-size: 1.05em; margin-top: 10px;",
           icon("exclamation-triangle", lib = "font-awesome"),
           strong(" Note: "),
-          "Pearson assumptions have only been tested for 2 variables. Assumptions for all pairwise comparisons have not been checked. Proceed with caution."
+          "You have either checked Pearson assumptions for only two variables, or skipped assumption checks for pairwise comparisons. Ensure that assumptions are tested for all pairs; otherwise, the validity of results cannot be guaranteed."
         ),
         easyClose = TRUE
       ))
@@ -4674,8 +4752,7 @@ output$boxplot_ui <- renderUI({
         ),
         uiOutput("cor_outlier_text"),
         uiOutput("cor_outlier_badge"),
-        br()
-        ,
+        br(),
 
 
 
@@ -5030,7 +5107,7 @@ output$boxplot_ui <- renderUI({
         style = "background-color:#fff3cd; color:#856404; padding:14px; border:1px solid #ffeeba; border-radius:5px; margin-bottom:12px;",
         icon("exclamation-triangle", lib = "font-awesome"),
         strong(" Pearson warning: "),
-        "Assumptions were only checked for 2-variable case. No guarantee of validity for all pairs."
+        "Please ensure that assumptions are tested for all pairs; otherwise, results may not be valid."
       )
     }
 
