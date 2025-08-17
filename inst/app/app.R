@@ -4249,6 +4249,8 @@ output$boxplot_ui <- renderUI({
 
 # Correlation analysis
   
+  mvn_res_val <- reactiveVal(NULL)
+  
   cor_assumptions_checked <- reactiveVal(FALSE)
   last_feature_count <- reactiveVal(NULL)
 
@@ -4561,7 +4563,13 @@ output$boxplot_ui <- renderUI({
       na.omit() %>%
       as.data.frame()
 
-    if (nrow(df2) < 3 || ncol(df2) != 2) {
+    mvn_res <- "Bivariate normality test not run."
+    
+    if (isTRUE(input$cor_do_clr)) {
+      mvn_res <- "Bivariate normality not applicable after CLR."
+      mvn_p <- NA
+      mvn_ok <- FALSE
+    } else if (nrow(df2) < 3 || ncol(df2) != 2) {
       mvn_res <- "Not enough data or not exactly 2 variables for bivariate normality test."
       mvn_p <- NA
       mvn_ok <- FALSE
@@ -4569,16 +4577,22 @@ output$boxplot_ui <- renderUI({
       hz_res <- tryCatch({
         MVN::hz(df2)
       }, error = function(e) NULL)
+      
       if (!is.null(hz_res) && is.data.frame(hz_res) && "p.value" %in% colnames(hz_res)) {
         mvn_p <- as.numeric(hz_res$p.value)[1]
         mvn_ok <- !is.na(mvn_p) && mvn_p > 0.05
+        mvn_res <- paste0("HZ test p-value: ", signif(mvn_p, 4))
       } else {
         mvn_p <- NA
         mvn_ok <- FALSE
+        mvn_res <- "Bivariate normality test could not be computed (e.g., too few samples, collinearity, or invalid data)."
       }
     }
+    
+    
     mvn_p_val(mvn_p)
     mvn_ok_val(mvn_ok)
+    mvn_res_val(mvn_res)
 
 
     # --- Outliers (Mahalanobis bivariate screen for Pearson)
@@ -4841,20 +4855,29 @@ output$boxplot_ui <- renderUI({
     # Bivariate
     output$cor_mvn_text <- renderUI({
       val <- mvn_p_val()
+      res <- mvn_res_val()
+      
       if (!is.null(val) && !is.na(val)) {
         div(
-          style = "background-color:#F5F5F5; color:black; font-size:1 em;
+          style = "background-color:#F5F5F5; color:black; font-size:1em;
                border:1.5px solid #B3B3B3; border-radius:8px; padding:14px 18px; margin-bottom:8px;",
           sprintf("HZ test p-value: %.4g", val)
         )
+      } else if (!is.null(res)) {
+        div(
+          style = "background-color:#F5F5F5; color:black; font-size:1em;
+               border:1.5px solid #B3B3B3; border-radius:8px; padding:14px 18px; margin-bottom:8px;",
+          res
+        )
       } else {
         div(
-          style = "background-color:#f5f5f5; color:black; font-size:1 em;
+          style = "background-color:#F5F5F5; color:black; font-size:1em;
                border:1.5px solid #B3B3B3; border-radius:8px; padding:14px 18px; margin-bottom:8px;",
-          "Multivariate normality test not run."
+          "Bivariate normality test not run."
         )
       }
     })
+    
     
     
 
