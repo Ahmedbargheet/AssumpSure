@@ -1126,7 +1126,7 @@ server <- function(input, output, session) {
     
     # Categorical: factor or character with few unique values
     cat_vars <- names(df)[sapply(df, function(col) {
-      is.factor(col) || (is.character(col) && length(unique(col)) <= 50)
+      is.factor(col) || (is.character(col) && length(unique(col)) <= 25)
     })]
     
     tagList(
@@ -1140,7 +1140,15 @@ server <- function(input, output, session) {
                       title = "Note: Only continuous variables are displayed. Count or discrete variables are excluded because they violate the normality and homogeneity assumptions of t-tests and ANOVA. For count outcomes, please use the Poisson regression (under 'Regression Models tab')."
                     )),
                   choices = c("Choose" = "", numeric_vars)),
-      selectInput("group_col", "Select Group/Condition Column (categorical):",
+      selectInput("group_col", 
+                  tagList(
+                  "Select Group/Condition Column (categorical):",
+                  tags$span(
+                    icon("info-circle", class = "fa-solid"),
+                    `data-bs-toggle` = "tooltip",
+                    `data-bs-placement` = "right",
+                    title = "Note: Categorical variables are limited to 25 levels to ensure ANOVA and Kruskal–Wallis results remain reliable and interpretable, with adequate samples per group."
+                  )),
                   choices = c("Choose" = "", cat_vars))
     )
   })
