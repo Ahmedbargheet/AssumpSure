@@ -4265,6 +4265,17 @@ output$boxplot_ui <- renderUI({
   
   cor_assumptions_checked <- reactiveVal(FALSE)
   last_feature_count <- reactiveVal(NULL)
+  
+  # --- PATCH 0:  ---
+  is_singular_matrix <- function(S, tol = .Machine$double.eps^0.5) {
+    if (!is.matrix(S)) return(TRUE)
+    if (any(!is.finite(S))) return(TRUE)
+    r <- qr(S)$rank
+    p <- ncol(S)
+    (r < p) || any(is.na(S)) || (min(abs(eigen(S, symmetric = TRUE, only.values = TRUE)$values)) < tol)
+  }
+  
+  
 
   observe({
     session$onFlushed(function() {
@@ -4502,8 +4513,8 @@ output$boxplot_ui <- renderUI({
     
     # Block if any negatives or non-positive values remain
     if (any(df_num <= 0, na.rm = TRUE)) {
-      clr_block_reason("CLR is not suitable: data contain zeros or negative values. Disable CLR or transform your data.")
-      showNotification(strong("CLR: All values must be strictly positive. Disable CLR or fix your data."), type = "error")
+      clr_block_reason("CLR is not suitable: data contain negative values. Disable CLR or transform your data.")
+      #showNotification(strong("CLR: All values must be strictly positive. Disable CLR or fix your data."), type = "error")
       return(NULL)
     }
     
@@ -4646,7 +4657,11 @@ output$boxplot_ui <- renderUI({
       ))
     } else {
       S <- stats::cov(df2_maha)
-      if (!is.finite(det(S)) || abs(det(S)) < .Machine$double.eps) {
+      singular_cov <- is_singular_matrix(S)
+      
+      if (isTRUE(input$cor_do_clr) && ncol(df2_maha) == 2) singular_cov <- TRUE
+      
+      if (singular_cov) {
         car_outliers_val(list(
           status = "na",
           alpha = alpha_out,
@@ -4654,21 +4669,38 @@ output$boxplot_ui <- renderUI({
           idx = integer(0),
           D2 = numeric(0),
           p = numeric(0),
-          message = "Screen not applicable: singular covariance."
+          message = "Screen not applicable: singular or ill-conditioned covariance (e.g., CLR with 2 variables)."
         ))
       } else {
-        D2 <- stats::mahalanobis(df2_maha, colMeans(df2_maha), S)
-        pvals <- stats::pchisq(D2, df = 2, lower.tail = FALSE)
-        idx <- which(pvals < alpha_out)
-        car_outliers_val(list(
-          status = if (length(idx) > 0) "outliers" else "clean",
-          alpha = alpha_out,
-          n = length(idx),
-          idx = idx,
-          D2 = D2[idx],
-          p = pvals[idx],
-          message = NULL
-        ))
+        # Safe Mahalanobis with tryCatch
+        mah <- tryCatch({
+          D2 <- stats::mahalanobis(df2_maha, colMeans(df2_maha), S)
+          pvals <- stats::pchisq(D2, df = ncol(df2_maha), lower.tail = FALSE)
+          idx <- which(pvals < alpha_out)
+          list(D2 = D2, p = pvals, idx = idx)
+        }, error = function(e) NULL)
+        
+        if (is.null(mah)) {
+          car_outliers_val(list(
+            status = "na",
+            alpha = alpha_out,
+            n = NA_integer_,
+            idx = integer(0),
+            D2 = numeric(0),
+            p = numeric(0),
+            message = "Screen not applicable: failed to compute Mahalanobis distance."
+          ))
+        } else {
+          car_outliers_val(list(
+            status = if (length(mah$idx) > 0) "outliers" else "clean",
+            alpha = alpha_out,
+            n = length(mah$idx),
+            idx = mah$idx,
+            D2 = mah$D2[mah$idx],
+            p = mah$p[mah$idx],
+            message = NULL
+          ))
+        }
       }
     }
 
