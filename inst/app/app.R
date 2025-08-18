@@ -1067,6 +1067,10 @@ server <- function(input, output, session) {
         }
       })
       
+      # Warn if dataset is too small
+      if (nrow(df) < 10) {
+        showNotification(strong("Warning: The app only detects continuous variables with ≥10 observations and ≥5 distinct values. This is the minimum for detection; reliable statistics usually need ≥20–30 observations per group."), type = "warning", duration = 15)
+      }
       
       df
     }, error = function(e) {
@@ -1081,43 +1085,42 @@ server <- function(input, output, session) {
     req(df)
     
     # Continuous: numeric with many unique values
-    # Continuous = numeric, not an ID, enough variety; be conservative with whole-number integers
-    numeric_vars <- names(df)[vapply(seq_along(df), function(i) {
-      col <- df[[i]]
-      nm  <- tolower(names(df)[i])
+    # Final, production-ready replacement
+    # Returns names of continuous variables meeting data sufficiency and spread criteria.
+    get_continuous_vars <- function(df,
+                                    min_n = 10,          # minimum finite observations
+                                    min_unique = 5,     # minimum distinct finite values
+                                    exclude_pure_integers = TRUE,
+                                    fractional_tol = sqrt(.Machine$double.eps)) {
       
-      if (!is.numeric(col)) return(FALSE)
-      x <- col[is.finite(col)]
-      n <- length(x); if (n < 3) return(FALSE)
-      u <- length(unique(x)); ur <- if (n > 0) u / n else 0
-      all_int <- all(abs(x - round(x)) < 1e-9)
-      
-      # 1) Drop obvious IDs by name or near-sequence
-      if (grepl("\\b(id|row|index)\\b", nm)) return(FALSE)
-      if (u == n && all_int && all(diff(sort(x)) == 1)) return(FALSE)  # strictly sequential unique integers
-      
-      # 1b) Drop integer ladders with low duplicates (e.g., 1,1,2,2,3,3,...)
-      if (all_int) {
-        uni <- sort(unique(x))
-        if (length(uni) >= 8 && all(diff(uni) == 1)) {
-          freq <- as.numeric(table(x))
-          if (median(freq) <= 2 && max(freq) <= 3) return(FALSE)
-        }
+      # Fast unique counter
+      unique_count <- function(x) {
+        if (requireNamespace("data.table", quietly = TRUE)) data.table::uniqueN(x) else length(unique(x))
       }
       
-      # 2) Drop count-like integers with high uniqueness at small n
-      if (all_int && min(x, na.rm = TRUE) >= 0) {
-        freq <- table(x)
-        prop_singletons <- mean(freq == 1)   # share of values that appear once
-        if ((ur >= 0.8 || prop_singletons >= 0.7) && n <= 50) return(FALSE)
+      is_continuous <- function(col) {
+        if (!is.numeric(col)) return(FALSE)
+        
+        x <- col[is.finite(col)]
+        if (length(x) < min_n) return(FALSE)
+        
+        v <- stats::var(x)
+        if (is.na(v) || v <= 0) return(FALSE)
+        
+        if (unique_count(x) < min_unique) return(FALSE)
+        
+        if (exclude_pure_integers && all(abs(x - round(x)) <= fractional_tol)) return(FALSE)
+        
+        TRUE
       }
       
-      # 3) Drop few-level integers → likely counts/ordinal
-      if (all_int && (u <= 5 || ur < 0.35)) return(FALSE)
-      
-      # 4) Keep if enough distinct values relative to n
-      return(u >= min(8, ceiling(0.5 * n)))
-    }, logical(1))]
+      keep <- vapply(df, is_continuous, logical(1L))
+      names(df)[keep]
+    }
+    
+    # Drop-in replacement for your line:
+    numeric_vars <- get_continuous_vars(df)
+    
     
     
     
@@ -4250,6 +4253,7 @@ output$boxplot_ui <- renderUI({
 # Correlation analysis
   
   mvn_res_val <- reactiveVal(NULL)
+  clr_block_reason <- reactiveVal(NULL)
   
   cor_assumptions_checked <- reactiveVal(FALSE)
   last_feature_count <- reactiveVal(NULL)
@@ -4320,6 +4324,20 @@ output$boxplot_ui <- renderUI({
     }
     
     updateTabsetPanel(session, inputId = "cor_tabs", selected = "Test Results")
+    
+    
+    
+    if (isTRUE(input$cor_do_clr) && is.null(cor_clr_data()) && !is.null(clr_block_reason())) {
+      showModal(modalDialog(
+        div(
+          style = "background-color:#f8d7da; color:#721c24; border:1px solid #f5c6cb; padding:16px; border-radius:6px; font-size:1.05em;",
+          icon("exclamation-circle", lib = "font-awesome"),
+          strong(" "), clr_block_reason()
+        ),
+        easyClose = TRUE
+      ))
+      return()
+    }
   })
 
   # Automatically switch to “Assumption Tests” tab when Check Assumptions is clicked
@@ -4462,26 +4480,31 @@ output$boxplot_ui <- renderUI({
   cor_clr_data <- reactive({
     df <- cor_selected_data()
     if (is.null(df)) return(NULL)
-    if (isTRUE(input$cor_do_clr) && ncol(df) > 1) {
-
-      # Only numeric, and replace zeros
-      df_num <- df %>%
-        dplyr::select(where(is.numeric)) %>%
-        dplyr::mutate(across(everything(), ~replace(.x, .x == 0, 0.0001)))
-
-      # Make sure no negative/zero values remain
-      if (any(df_num <= 0, na.rm = TRUE)) {
-        showNotification(strong("CLR: All values must be positive."), type = "error")
-        return(NULL)
-      }
-      df_clr <- compositions::clr(as.matrix(df_num)) %>%
-        as.data.frame()
-      colnames(df_clr) <- colnames(df_num)
-      df_clr  # return CLR'd dataframe
-    } else {
-      df
+    
+    # reset reason
+    clr_block_reason(NULL)
+    
+    # If CLR not requested, just return numeric subset after basic cleaning
+    if (!isTRUE(input$cor_do_clr) || ncol(df) <= 1) return(df)
+    
+    # Only numeric, and replace zeros with a small positive value
+    df_num <- df %>%
+      dplyr::select(where(is.numeric)) %>%
+      dplyr::mutate(across(everything(), ~replace(.x, .x == 0, 0.0001)))
+    
+    # Block if any negatives or non-positive values remain
+    if (any(df_num <= 0, na.rm = TRUE)) {
+      clr_block_reason("CLR is not suitable: data contain zeros or negative values. Disable CLR or transform your data.")
+      showNotification(strong("CLR: All values must be strictly positive. Disable CLR or fix your data."), type = "error")
+      return(NULL)
     }
+    
+    # Safe CLR
+    df_clr <- compositions::clr(as.matrix(df_num)) %>% as.data.frame()
+    colnames(df_clr) <- colnames(df_num)
+    df_clr
   })
+  
 
   ## CLR warning
   output$cor_clr_warning <- renderUI({
@@ -4650,6 +4673,14 @@ output$boxplot_ui <- renderUI({
     # --- Results UI
     output$cor_assumption_content <- renderUI({
       req(input$cor_features)
+      
+      if (isTRUE(input$cor_do_clr) && is.null(cor_clr_data()) && !is.null(clr_block_reason())) {
+        return(div(
+          style = "background-color:#f8d7da; color:#721c24; border:1px solid #f5c6cb; padding:16px; border-radius:6px; margin-top:10px;",
+          icon("exclamation-circle", lib = "font-awesome"),
+          strong(" "), clr_block_reason()
+        ))
+      }
       
       # Show nothing if method is not selected
       if (is.null(input$cor_method) || input$cor_method == "") return(NULL)
@@ -5074,6 +5105,16 @@ output$boxplot_ui <- renderUI({
     req(input$cor_run)
     valid_methods <- c("pearson", "spearman", "kendall", "biweight")
     if (!(input$cor_method %in% valid_methods)) return(NULL)
+    
+    
+    if (isTRUE(input$cor_do_clr) && is.null(cor_clr_data()) && !is.null(clr_block_reason())) {
+      return(div(
+        style = "background-color:#f8d7da; color:#721c24; border:1px solid #f5c6cb; padding:16px; border-radius:6px; margin-top:10px;",
+        icon("exclamation-circle", lib = "font-awesome"),
+        strong(" "), clr_block_reason()
+      ))
+    }
+    
 
     n_feat <- length(input$cor_features)
     
@@ -5224,6 +5265,7 @@ output$boxplot_ui <- renderUI({
     if (!(input$cor_method %in% valid_methods)) return(NULL)
 
     df <- cor_clr_data()
+    if (isTRUE(input$cor_do_clr) && is.null(df) && !is.null(clr_block_reason())) return(NULL)
     if (is.null(df)) return(NULL)
 
     # Block only if Pearson + exactly 2 vars + assumptions not tested
@@ -5266,6 +5308,16 @@ output$boxplot_ui <- renderUI({
         )
       )
     }
+    
+    # INSERT after valid_methods checks
+    if (isTRUE(input$cor_do_clr) && is.null(cor_clr_data()) && !is.null(clr_block_reason())) {
+      return(div(
+        style = "background-color:#f8d7da; color:#721c24; border:1px solid #f5c6cb; padding:16px; border-radius:6px; margin-top:10px;",
+        icon("exclamation-circle", lib = "font-awesome"),
+        strong(" "), clr_block_reason()
+      ))
+    }
+    
 
     n_feat <- length(input$cor_features)
     if (input$cor_method == "pearson" && n_feat == 2) {
@@ -5429,6 +5481,17 @@ output$cor_matrix_download_ui <- renderUI({
     req(input$cor_run)
     valid_methods <- c("pearson", "spearman", "kendall", "biweight")
     if (!(input$cor_method %in% valid_methods)) return(NULL)
+    
+    # NULL-safe fetch
+    df_clr <- cor_clr_data()
+    if (isTRUE(input$cor_do_clr) && is.null(df_clr) && !is.null(clr_block_reason())) {
+      return(div(
+        style = "background-color:#f8d7da; color:#721c24; border:1px solid #f5c6cb; padding:16px; border-radius:6px; margin-top:10px;",
+        icon("exclamation-circle", lib = "font-awesome"),
+        strong(" "), clr_block_reason()
+      ))
+    }
+    if (is.null(df_clr)) return(NULL)
 
     #n_feat <- length(input$cor_features)
     n_feat <- ncol(cor_clr_data())
@@ -5478,6 +5541,18 @@ output$cor_matrix_download_ui <- renderUI({
     
     df <- cor_clr_data()
     #n_feat <- length(input$cor_features)
+    
+    if (isTRUE(input$cor_do_clr) && is.null(df) && !is.null(clr_block_reason())) {
+      heatmap_error_msg(div(
+        style = "background-color:#f8d7da; color:#721c24; border:1px solid #f5c6cb; padding:16px; border-radius:6px; margin-top:16px; font-size:1.08em;",
+        icon("exclamation-circle", lib = "font-awesome"),
+        strong(" "), clr_block_reason()
+      ))
+      heatmap_failed(TRUE)
+      return(NULL)
+    }
+    if (is.null(df)) return(NULL)
+    
     n_feat <- ncol(df)
     if (is.null(n_feat) || is.na(n_feat)) return(NULL)
     if (n_feat < 5 || n_feat > 20) return(NULL)
@@ -5671,6 +5746,10 @@ output$cor_matrix_download_ui <- renderUI({
       req(input$cor_run)
       valid_methods <- c("pearson", "spearman", "kendall", "biweight")
       if (!(input$cor_method %in% valid_methods)) return(NULL)
+      
+      df_clr <- cor_clr_data()
+      if (isTRUE(input$cor_do_clr) && is.null(df_clr) && !is.null(clr_block_reason())) return(NULL)
+      if (is.null(df_clr)) return(NULL)
 
       #n_feat <- length(input$cor_features)
       n_feat <- ncol(cor_clr_data())
