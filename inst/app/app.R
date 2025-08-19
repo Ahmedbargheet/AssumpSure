@@ -1560,7 +1560,7 @@ assumption_ui_independent <- function() {
                          "; color: white; padding: 10px; border-radius: 5px; margin-top: 10px;"),
           strong(
             if (shap_failed)
-              "Data deviates from normal distribution"
+              "One or more groups deviate significantly from normality."
             else
               "Data appears to be normally distributed"
           )
@@ -1620,7 +1620,7 @@ assumption_ui_dependent <- function() {
                          "; color: white; padding: 10px; border-radius: 5px; margin-top: 10px;"),
           strong(
             if (shap_p <= 0.05)
-              "Differences are not normally distributed"
+              "Differences are not normally distributed."
             else
               "Differences appear to be normally distributed"
           )
@@ -1684,7 +1684,7 @@ assumption_ui_anova <- function() {
                          "; color: white; padding: 10px; border-radius: 5px; margin-top: 10px;"),
           strong(
             if (lev_p <= 0.05)
-              "Variances are significantly different (Heterogeneous)"
+              "Variances are significantly different (Heterogeneous)."
             else
               "Variances are equal (Homogeneous)"
           )
@@ -1701,7 +1701,7 @@ assumption_ui_anova <- function() {
                          "; color: white; padding: 10px; border-radius: 5px; margin-top: 10px;"),
           strong(
             if (shap_failed)
-              "Data deviates from normal distribution"
+              "One or more groups deviate significantly from normality."
             else
               "Data appears to be normally distributed"
           )
