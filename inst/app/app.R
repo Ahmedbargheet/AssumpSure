@@ -1057,15 +1057,28 @@ server <- function(input, output, session) {
       
       # Convert character columns to factor if they have <=50 unique values,
       # otherwise leave as character. Numeric columns left as is.
+      # df[] <- lapply(df, function(col) {
+      #   if (is.character(col) && length(unique(col)) <= 50) {
+      #     return(factor(col))
+      #   } else if (is.logical(col)) {
+      #     return(factor(col))
+      #   } else {
+      #     return(col)
+      #   }
+      # })
+      
       df[] <- lapply(df, function(col) {
         if (is.character(col) && length(unique(col)) <= 50) {
-          return(factor(col))
+          factor(col)
         } else if (is.logical(col)) {
-          return(factor(col))
+          factor(col)
+        } else if (is.numeric(col) && all(col == floor(col), na.rm = TRUE) && length(unique(col)) <= 10) {
+          as.character(col)   # numeric-coded categorical → character
         } else {
-          return(col)
+          col
         }
       })
+      
       
       # Warn if dataset is too small
       if (nrow(df) < 10) {
@@ -1126,7 +1139,7 @@ server <- function(input, output, session) {
     
     # Categorical: factor or character with few unique values
     cat_vars <- names(df)[sapply(df, function(col) {
-      is.factor(col) || (is.character(col) && length(unique(col)) <= 25)
+      is.factor(col) || (is.character(col) && length(unique(col)) <= 10)
     })]
     
     tagList(
@@ -1147,7 +1160,7 @@ server <- function(input, output, session) {
                     icon("info-circle", class = "fa-solid"),
                     `data-bs-toggle` = "tooltip",
                     `data-bs-placement` = "right",
-                    title = "Note: Categorical variables are limited to 25 levels to ensure ANOVA and Kruskal–Wallis results remain reliable and interpretable, with adequate samples per group."
+                    title = "Note: Categorical variables are limited to 10 levels to ensure ANOVA and Kruskal–Wallis results remain reliable and interpretable, with adequate samples per group."
                   )),
                   choices = c("Choose" = "", cat_vars))
     )
@@ -1336,7 +1349,9 @@ server <- function(input, output, session) {
     # Check column types BEFORE further processing
     value_is_numeric <- is.numeric(type.convert(df0[[input$value_col]], as.is = TRUE))
     group_is_factor  <- is.factor(as.factor(df0[[input$group_col]]))
-    group_is_numeric <- is.numeric(type.convert(df0[[input$group_col]], as.is = TRUE))
+    #group_is_numeric <- is.numeric(type.convert(df0[[input$group_col]], as.is = TRUE))
+    group_is_numeric <- is.numeric(df0[[input$group_col]])
+    
 
     if (!value_is_numeric) {
       showNotification(strong("The selected value column is not numeric. Please select a numeric column."), 
@@ -2591,7 +2606,9 @@ run_wilcoxon_signed_test <- function(df) {
         df0 <- dplyr::filter(df0, timepoint == input$timepoint)
       }
       value_is_numeric <- is.numeric(type.convert(df0[[input$value_col]], as.is = TRUE))
-      group_is_numeric <- is.numeric(type.convert(df0[[input$group_col]], as.is = TRUE))
+      #group_is_numeric <- is.numeric(type.convert(df0[[input$group_col]], as.is = TRUE))
+      group_is_numeric <- is.numeric(df0[[input$group_col]])
+      
       if (!value_is_numeric) {
         showNotification(strong("The selected value column is not numeric. Please select a numeric column."), 
                          type = "error")
