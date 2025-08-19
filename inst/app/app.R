@@ -424,19 +424,14 @@ function corScreenshotWithoutScatterBtn() {
 
   tabPanel("Fisher & Chi-square",
            fluidPage(
+             useShinyjs(),
              sidebarLayout(
                sidebarPanel(
                  fileInput("file_fisher", "Upload CSV File", accept = ".csv"),
                  uiOutput("fisher_timepoint_ui"),
-                 selectInput("cat1", "Select first categorical variable:",
-                             choices = c("Select variable" = ""), selected = ""),
-                 selectInput("cat2", "Select second categorical variable:",
-                             choices = c("Select variable" = ""), selected = ""),
-                 selectInput("test_type_fisher", "Choose test:",
-                             choices = c("Choose Test" = "",
-                                         "Chi-square test" = "chisq",
-                                         "Fisher’s exact test" = "fisher"),
-                             selected = ""),
+                 uiOutput("cat1_ui"),
+                 uiOutput("cat2_ui"),
+                 uiOutput("test_type_fisher_ui"),
                  actionButton("run_fisher", "Run Test", class = "btn-success"),
                  actionButton("plot_fisher", "Plot", class = "btn-primary")
                ),
@@ -3622,10 +3617,12 @@ output$boxplot_ui <- renderUI({
     for (nm in names(df)) {
       if (nm != "timepoint") {
         col <- df[[nm]]
-        if (is.character(col) && length(unique(col)) <= 50) {
+        if (is.character(col) && length(unique(col)) <= 15) {
           df[[nm]] <- factor(col)
         } else if (is.logical(col)) {
           df[[nm]] <- factor(col)
+        } else if (is.numeric(col) && all(col == floor(col), na.rm = TRUE) && length(unique(col)) <= 15) {
+          df[[nm]] <- as.character(col)   # numeric-coded categorical → character
         }
       }
     }
@@ -3642,10 +3639,20 @@ output$boxplot_ui <- renderUI({
   # UI for selecting first categorical variable
   output$cat1_ui <- renderUI({
     df <- fisher_data()
+    if (is.null(df)) return(NULL) ## only show after upload
+    
     cat_vars <- names(df)[sapply(df, function(col)
       is.character(col) || is.factor(col) || is.logical(col))]
     
-    selectInput("cat1", "Select first categorical variable:",
+    selectInput("cat1", 
+                tagList(
+                  "Select second categorical variable:",
+                  tags$span(
+                    icon("info-circle", class = "fa-solid"),
+                    `data-bs-toggle` = "tooltip",
+                    `data-bs-placement` = "right",
+                    title = "Note: Categorical variables are limited to 15 unique levels to improve validity and interpretability of Fisher’s exact and Chi-square tests, as larger tables often violate expected-count assumptions and yield less reliable results."
+                  )),
                 choices = c("Select variable" = "", cat_vars),
                 selected = "")
   })
@@ -3653,13 +3660,30 @@ output$boxplot_ui <- renderUI({
   # UI for selecting second categorical variable, excluding the first
   output$cat2_ui <- renderUI({
     df <- fisher_data()
+    if (is.null(df)) return(NULL) ## only show after upload
+    
     cat_vars <- names(df)[sapply(df, function(col)
       is.character(col) || is.factor(col) || is.logical(col))]
     
-    selectInput("cat2", "Select second categorical variable:",
+    selectInput("cat2", 
+                tagList(
+                "Select second categorical variable:",
+                tags$span(
+                  icon("info-circle", class = "fa-solid"),
+                  `data-bs-toggle` = "tooltip",
+                  `data-bs-placement` = "right",
+                  title = "Note: Categorical variables are limited to 15 unique levels to improve validity and interpretability of Fisher’s exact and Chi-square tests, as larger tables often violate expected-count assumptions and yield less reliable results."
+                )),
                 choices = c("Select variable" = "", cat_vars),
                 selected = "")
   })
+  
+  
+  ## ---- Fisher: re-init tooltips after renderUI ----
+  session$onFlushed(function() {
+    session$sendCustomMessage("reinit-tooltips", list())
+  }, once = FALSE)
+  
   
 
   output$fisher_timepoint_ui <- renderUI({
@@ -3672,6 +3696,15 @@ output$boxplot_ui <- renderUI({
       )
     }
   })
+  
+  # Dynamic UI for test type
+  output$test_type_fisher_ui <- renderUI({
+    selectInput("test_type_fisher", "Choose test:",
+                choices = c("Choose Test" = "",
+                            "Chi-square test" = "chisq",
+                            "Fisher’s exact test" = "fisher"),
+                selected = "")
+  })
 
   # Update the categorical variable selectors when data is uploaded or timepoint selected
   observe({
@@ -3682,10 +3715,12 @@ output$boxplot_ui <- renderUI({
     is_categorical <- function(x) is.factor(x) || is.character(x)
     cat_vars <- names(df)[sapply(df, is_categorical)]
     cat_vars <- setdiff(cat_vars, c("timepoint", "sample_id"))
-    updateSelectInput(session, "cat1", choices = c("Select variable" = "", cat_vars),
-                      label = "Select first categorical variable:", selected = "")
-    updateSelectInput(session, "cat2", choices = c("Select variable" = "", cat_vars),
-                      label = "Select second categorical variable:", selected = "")
+    updateSelectInput(session, "cat1", 
+                      choices = c("Select variable" = "", cat_vars), 
+                      selected = "")
+    updateSelectInput(session, "cat2", 
+                      choices = c("Select variable" = "", cat_vars),
+                      selected = "")
   })
 
 
