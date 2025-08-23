@@ -7409,7 +7409,9 @@ lmm_vars <- reactive({
 
       log_data <- reactive({
         req(input$log_file)
-        readr::read_csv(input$log_file$datapath, show_col_types = F) %>%
+        
+        ## assign to df first
+        df <- readr::read_csv(input$log_file$datapath, show_col_types = FALSE) %>%
           dplyr::select(
             -dplyr::contains("infant_id", ignore.case = TRUE),
             -dplyr::contains("infantid", ignore.case = TRUE),
@@ -7419,6 +7421,23 @@ lmm_vars <- reactive({
             -dplyr::contains("accession", ignore.case = TRUE),
             -dplyr::contains("name", ignore.case = TRUE)
           )
+        
+        ## now safely transform df
+        df[] <- lapply(df, function(col) {
+          if (is.character(col)) {
+            factor(col)                          
+          } else if (is.logical(col)) {
+            factor(col)                          
+          } else if (is.numeric(col) &&
+                     all(col == floor(col), na.rm = TRUE) &&
+                     length(unique(col)) <= 15) {
+            factor(as.character(col))            
+          } else {
+            col
+          }
+        })
+        
+        df
       })
 
 
@@ -7496,6 +7515,8 @@ lmm_vars <- reactive({
 
         output$log_result <- renderUI({
           df <- log_model_data()
+          validate(need(!is.null(df), ""))
+          
           main_effects <- input$log_indep
           interaction_terms <- NULL
           if (!is.null(input$log_interact) && length(input$log_interact) > 0) {
@@ -7505,7 +7526,12 @@ lmm_vars <- reactive({
           fml <- as.formula(paste(input$log_dep, "~", paste(rhs, collapse = " + ")))
           
           # --- Fit the penalized logistic regression model ---
-          mod <- glm(fml, data = df, family = binomial(), method = "brglmFit")
+          res <- tryCatch({                  ## added tryCatch
+            mod <- glm(fml, data = df, family = binomial(), method = "brglmFit")
+            broom::tidy(mod, conf.int = TRUE)
+          }, error = function(e) NULL)
+          
+          validate(need(!is.null(res), ""))
           
           # --- Extract tidy summary and check for problematic variables ---
           b <- broom::tidy(mod, conf.int = TRUE)
@@ -7575,8 +7601,8 @@ lmm_vars <- reactive({
         # Check exactly two unique non-NA values
         if (length(dep_levels) != 2) {
           showNotification(strong(
-            sprintf("Dependent variable must have exactly 2 levels, found: %s", paste(dep_levels, collapse = ", "))
-          ), type = "error")
+            sprintf("More than 2 levels were detected. Please use multinomial regressios instead")), 
+            type = "error")
           return(NULL)
         }
         
@@ -7872,7 +7898,8 @@ lmm_vars <- reactive({
       output$nb_dep_ui <- renderUI({
         df <- nb_data()
         count_like_vars <- names(df)[sapply(df, function(col) {
-          is.numeric(col) && all(col >= 0, na.rm = TRUE) && all(col == floor(col), na.rm = TRUE)
+          is.numeric(col) && all(col >= 0, na.rm = TRUE) && all(col == floor(col), na.rm = TRUE) &&
+            length(unique(col[!is.na(col)])) > 5    ## added: must have >5 unique values
         })]
 
         tagList(
@@ -8286,7 +8313,8 @@ lmm_vars <- reactive({
       # ---- Multinomial Regression: Reactive Data ----
       multi_data <- reactive({
         req(input$multi_file)
-        readr::read_csv(input$multi_file$datapath, show_col_types = F) %>%
+        
+        df <- readr::read_csv(input$multi_file$datapath, show_col_types = FALSE) %>%
           dplyr::select(
             -dplyr::contains("infant_id", ignore.case = TRUE),
             -dplyr::contains("infantid", ignore.case = TRUE),
@@ -8296,6 +8324,23 @@ lmm_vars <- reactive({
             -dplyr::contains("accession", ignore.case = TRUE),
             -dplyr::contains("name", ignore.case = TRUE)
           )
+        
+        ## added: convert character/logical/numeric-coded categoricals to factors
+        df[] <- lapply(df, function(col) {
+          if (is.character(col)) {
+            factor(col)
+          } else if (is.logical(col)) {
+            factor(col)
+          } else if (is.numeric(col) &&
+                     all(col == floor(col), na.rm = TRUE) &&
+                     length(unique(col)) <= 15) {
+            factor(as.character(col))   ## numeric-coded categorical → factor
+          } else {
+            col
+          }
+        })
+        
+        df
       })
 
 
@@ -8368,6 +8413,8 @@ lmm_vars <- reactive({
 
         output$multi_result <- renderUI({
           df <- multi_model_data()
+          validate(need(!is.null(df), ""))
+          
           main_effects <- input$multi_indep
           interaction_terms <- NULL
 
@@ -8377,7 +8424,13 @@ lmm_vars <- reactive({
 
           rhs <- c(main_effects, interaction_terms)
           fml <- as.formula(paste(input$multi_dep, "~", paste(rhs, collapse = " + ")))
-          mod <- nnet::multinom(fml, data = df, trace = FALSE)
+          #mod <- nnet::multinom(fml, data = df, trace = FALSE)
+          res <- tryCatch({                                         ## added: guard model fit
+            mod <- nnet::multinom(fml, data = df, trace = FALSE)
+            broom::tidy(mod, conf.int = TRUE)
+          }, error = function(e) NULL)
+          
+          validate(need(!is.null(res), ""))      ## added: suppress error UI
 
         tbl_mul <- broom::tidy(mod, conf.int = TRUE) %>%
             dplyr::mutate(Sig = dplyr::case_when(
@@ -8469,6 +8522,8 @@ lmm_vars <- reactive({
         
         output$multi_assump <- renderPlot({
           df <- multi_model_data()
+          validate(need(!is.null(df), ""))
+          
           main_effects <- input$multi_indep
           interaction_terms <- NULL
           
@@ -8478,8 +8533,12 @@ lmm_vars <- reactive({
           
           rhs <- c(main_effects, interaction_terms)
           fml <- as.formula(paste(input$multi_dep, "~", paste(rhs, collapse = " + ")))
-          mod <- nnet::multinom(fml, data = df, trace = FALSE)
-          performance::check_model(mod, residual_type = "normal")
+          ok <- tryCatch({                                         ## added
+            mod <- nnet::multinom(fml, data = df, trace = FALSE)
+            print(performance::check_model(mod, residual_type = "normal"))
+            TRUE
+          }, error = function(e) FALSE)
+          validate(need(ok, ""))
         })
       })
 
@@ -8488,6 +8547,8 @@ lmm_vars <- reactive({
         filename = function() paste0("multinomial_assumption_plot_", Sys.Date(), ".pdf"),
         content = function(file) {
           df <- multi_model_data()
+          if (is.null(df)) return(invisible(NULL))
+          
           main_effects <- input$multi_indep
           interaction_terms <- NULL
 
@@ -8497,7 +8558,10 @@ lmm_vars <- reactive({
 
           rhs <- c(main_effects, interaction_terms)
           fml <- as.formula(paste(input$multi_dep, "~", paste(rhs, collapse = " + ")))
-          mod <- nnet::multinom(fml, data = df, trace = FALSE)
+          mod <- tryCatch({                                         ## added
+            nnet::multinom(fml, data = df, trace = FALSE)
+          }, error = function(e) NULL)
+          if (is.null(mod)) return(invisible(NULL))
 
           check_plot <- performance::check_model(mod)
 
@@ -8540,7 +8604,8 @@ lmm_vars <- reactive({
       output$poiss_dep_ui <- renderUI({
         df <- poiss_data()
         count_like_vars <- names(df)[sapply(df, function(col) {
-          is.numeric(col) && all(col >= 0, na.rm = TRUE) && all(col == floor(col), na.rm = TRUE)
+          is.numeric(col) && all(col >= 0, na.rm = TRUE) && all(col == floor(col), na.rm = TRUE) &&
+            length(unique(col[!is.na(col)])) > 5    ## added: must have >5 unique values
         })]
         
         tagList(
@@ -8957,7 +9022,8 @@ lmm_vars <- reactive({
       output$zinb_dep_ui <- renderUI({
         df <- zinb_data()
         count_like_vars <- names(df)[sapply(df, function(col) {
-          is.numeric(col) && all(col >= 0, na.rm = TRUE) && all(col == floor(col), na.rm = TRUE)
+          is.numeric(col) && all(col >= 0, na.rm = TRUE) && all(col == floor(col), na.rm = TRUE) &&
+            length(unique(col[!is.na(col)])) > 5    ## added: must have >5 unique values
         })]
         tagList(
           selectInput("zinb_dep", 

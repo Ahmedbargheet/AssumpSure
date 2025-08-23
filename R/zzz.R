@@ -1,0 +1,14 @@
+.onAttach <- function(libname, pkgname) {
+  current <- utils::packageVersion("AssumpSure")
+  latest  <- "1.1.1"   # hard-code my current CRAN release
+  
+  if (current < latest) {
+    packageStartupMessage(
+      sprintf(
+        "A newer version of AssumpSure (%s) is available. You have %s. 
+Update with: install.packages('AssumpSure')",
+        latest, current
+      )
+    )
+  }
+}
