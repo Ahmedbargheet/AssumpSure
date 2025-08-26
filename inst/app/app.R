@@ -3042,7 +3042,16 @@ run_wilcoxon_signed_test <- function(df) {
       },
       posthoc_ui,                       # Post hoc button or warning message
       uiOutput("posthoc_result_ui"),    # Then post hoc results
-      actionButton("plot_boxplot_welch_anova", "Plot Boxplot", class = "btn-plot", style = "margin-top: 12px;"),
+      
+      tagList(actionButton("plot_boxplot_welch_anova", "Plot Boxplot", class = "btn-plot", style = "margin-top: 12px;")),
+              # Tooltip icon placed next to the button
+              tags$span(
+                icon("info-circle", class = "fa-solid"),
+                `data-bs-toggle` = "tooltip",
+                `data-bs-placement` = "right",
+                title = "****: p < 0.0001\n***: p < 0.001\n**: p < 0.01\n*: p < 0.05\nns: Not significant",
+                style = "color: #010001; cursor: pointer; margin-left: 6px; position: relative; top: 7px;"
+              ),
       plotOutput("boxplot_welch_anova", height = "350px"),
       downloadButton("download_boxplot_welch_anova", "Download Boxplot", class = "no-print", style = "margin-top: 10px;")
     )
@@ -3265,6 +3274,14 @@ output$welch_boxplot_ui <- renderUI({
   req(welch_clicked())
   tagList(
     actionButton("plot_boxplot_welch", "Plot Boxplot", class = "btn-plot", style = "margin-top: 10px;"),
+    # Tooltip icon placed next to the button
+    tags$span(
+      icon("info-circle", class = "fa-solid"),
+      `data-bs-toggle` = "tooltip",
+      `data-bs-placement` = "right",
+      title = "****: p < 0.0001\n***: p < 0.001\n**: p < 0.01\n*: p < 0.05\nns: Not significant",
+      style = "color: #010001; cursor: pointer; margin-left: 6px; position: relative; top: 5px;"
+    ),
     plotOutput("boxplot_welch", height = "350px"),
     downloadButton("download_boxplot_welch", "Download Boxplot", class = "no-print", style = "margin-top: 10px;")
   )
@@ -3294,7 +3311,21 @@ output$boxplot_ui <- renderUI({
   if (test == "kruskal" && nlevels(df$group) < 3) return(NULL)
   
   tagList(
-    actionButton("plot_boxplot", "Plot Boxplot", class = "btn-plot"),
+    # Action button
+    actionButton(
+      "plot_boxplot",
+      "Plot Boxplot",
+      class = "btn-plot"
+    ),
+    
+    # Tooltip icon placed next to the button
+    tags$span(
+      icon("info-circle", class = "fa-solid"),
+      `data-bs-toggle` = "tooltip",
+      `data-bs-placement` = "right",
+      title = "****: p < 0.0001\n***: p < 0.001\n**: p < 0.01\n*: p < 0.05\nns: Not significant",
+      style = "color: #010001; cursor: pointer; margin-left: 6px;"
+    ),
     plotOutput("boxplot"),
     downloadButton("download_boxplot", "Download Boxplot", class = "no-print")
   )
@@ -3311,8 +3342,9 @@ output$boxplot_ui <- renderUI({
     levs <- levels(df$group)
     # Only allow exactly 2 groups for this test
     if(length(levs) != 2) return(ggplot2::ggplot() + labs(title = "Requires exactly 2 groups"))
+    
     # Explicitly set the comparison
-    #comparison <- list(c(levs[1], levs[2]))
+    comparison <- list(c(levs[1], levs[2]))
     
     ggplot2::ggplot(df, aes(x = group, y = value, fill = group)) +
       geom_boxplot(alpha = 0.7, width = 0.3, outlier.colour = NA) +
@@ -3330,9 +3362,10 @@ output$boxplot_ui <- renderUI({
             legend.title = element_text(face = "bold", size = 14),
             legend.text = element_text(size = 12)) +
       theme(legend.position = "none") +
-      geom_flat_violin(position = position_nudge(x = 0.2, y = 0), alpha = 0.8, adjust = 0.9, width = 0.5) #+
-      #ggpubr::stat_compare_means(comparisons = comparison, method = "t.test", paired = FALSE, 
-      #                           label = "p.signif", size = 5.5, vjust = 0.5)
+      geom_flat_violin(position = position_nudge(x = 0.2, y = 0), alpha = 0.8, adjust = 0.9, width = 0.5) +
+      ggpubr::stat_compare_means(comparisons = comparison, method = "t.test", paired = FALSE, 
+                                 label = "p.signif", size = 3.5, vjust = 0.2, tip.length = 0.02)
+    
   }
 
 
@@ -3344,8 +3377,9 @@ output$boxplot_ui <- renderUI({
     levs <- levels(df$group)
     # Only allow exactly 2 groups for this test
     if(length(levs) != 2) return(ggplot2::ggplot() + labs(title = "Requires exactly 2 groups"))
+   
     # Explicitly set the comparison
-    #comparison <- list(c(levs[1], levs[2]))
+    comparison <- list(c(levs[1], levs[2]))
     
     
     ggplot2::ggplot(df, aes(x = group, y = value, fill = group)) +
@@ -3364,9 +3398,9 @@ output$boxplot_ui <- renderUI({
             legend.title = element_text(face = "bold", size = 14),
             legend.text = element_text(size = 12)) +
       theme(legend.position = "none") +
-      geom_flat_violin(position = position_nudge(x = 0.2, y = 0), alpha = 0.8, adjust = 0.9, width = 0.5) #+ 
-      #ggpubr::stat_compare_means(comparisons = comparison, method = "t.test", paired = TRUE, 
-      #                           label = "p.signif", size = 5.5, vjust = 0.5)
+      geom_flat_violin(position = position_nudge(x = 0.2, y = 0), alpha = 0.8, adjust = 0.9, width = 0.5) + 
+      ggpubr::stat_compare_means(comparisons = comparison, method = "t.test", paired = TRUE, 
+                                 label = "p.signif", size = 3.5, vjust = 0.2, tip.length = 0.02)
   }
 
   # --- Boxplot (Mann-Whitney) ---
@@ -3375,10 +3409,12 @@ output$boxplot_ui <- renderUI({
     # Always coerce to factor and drop unused levels
     df$group <- factor(df$group)
     levs <- levels(df$group)
+    
     # Only allow exactly 2 groups for this test
     if(length(levs) != 2) return(ggplot2::ggplot() + labs(title = "Requires exactly 2 groups"))
+    
     # Explicitly set the comparison
-    #comparison <- list(c(levs[1], levs[2]))
+    comparison <- list(c(levs[1], levs[2]))
     
     ggplot2::ggplot(df, aes(x = group, y = value, fill = group)) +
       geom_boxplot(alpha = 0.7, width = 0.3, outlier.colour = NA) +
@@ -3396,9 +3432,9 @@ output$boxplot_ui <- renderUI({
             legend.title = element_text(face = "bold", size = 14),
             legend.text = element_text(size = 12)) +
       theme(legend.position = "none") +
-      geom_flat_violin(position = position_nudge(x = 0.2, y = 0), alpha = 0.8, adjust = 0.9, width = 0.5) #+
-      #ggpubr::stat_compare_means(comparisons = comparison, method = "wilcox.test", paired = FALSE, 
-      #                           label = "p.signif", size = 5.5, vjust = 0.5)
+      geom_flat_violin(position = position_nudge(x = 0.2, y = 0), alpha = 0.8, adjust = 0.9, width = 0.5) +
+      ggpubr::stat_compare_means(comparisons = comparison, method = "wilcox.test", paired = FALSE, 
+                                 label = "p.signif", size = 3.5, vjust = 0.2, tip.length = 0.02)
   }
 
 # --- Boxplot (Wilcoxon signed-rank test) ---
@@ -3409,8 +3445,9 @@ output$boxplot_ui <- renderUI({
     levs <- levels(df$group)
     # Only allow exactly 2 groups for this test
     if(length(levs) != 2) return(ggplot2::ggplot() + labs(title = "Requires exactly 2 groups"))
+    
     # Explicitly set the comparison
-    #comparison <- list(c(levs[1], levs[2]))
+    comparison <- list(c(levs[1], levs[2]))
     
     ggplot2::ggplot(df, aes(x = group, y = value, fill = group)) +
       geom_boxplot(alpha = 0.7, width = 0.3, outlier.colour = NA) +
@@ -3428,9 +3465,9 @@ output$boxplot_ui <- renderUI({
             legend.title = element_text(face = "bold", size = 14),
             legend.text = element_text(size = 12)) +
       theme(legend.position = "none") +
-      geom_flat_violin(position = position_nudge(x = 0.2, y = 0), alpha = 0.8, adjust = 0.9, width = 0.5) #+ 
-      #ggpubr::stat_compare_means(comparisons = comparison, method = "wilcox.test", paired = TRUE, 
-      #                           label = "p.signif", size = 5.5, vjust = 0.5)
+      geom_flat_violin(position = position_nudge(x = 0.2, y = 0), alpha = 0.8, adjust = 0.9, width = 0.5) + 
+      ggpubr::stat_compare_means(comparisons = comparison, method = "wilcox.test", paired = TRUE, 
+                                 label = "p.signif", size = 3.5, vjust = 0.2, tip.length = 0.02)
   }
 
 # --- Boxplot (Anova) ---
@@ -3441,6 +3478,14 @@ output$boxplot_ui <- renderUI({
     levs <- levels(df$group)
     # Create all pairwise comparisons
     #comparisons <- combn(levs, 2, simplify = FALSE)
+    
+    # Perform one-way ANOVA
+    anova_res <- rstatix::anova_test(data = df, value ~ group)
+    
+    # Tukey's HSD post-hoc test
+    tukey_res <- rstatix::tukey_hsd(df, value ~ group) %>%
+      rstatix::add_xy_position(x = "group", step.increase = 0.1)  # avoids bracket overlap
+    
     
     comparison <- combn(unique(df$group), 2, simplify = FALSE)
     p <- ggplot2::ggplot(df, aes(x = group, y = value, fill = group)) +
@@ -3457,7 +3502,13 @@ output$boxplot_ui <- renderUI({
             legend.title = element_text(face = "bold", size = 14),
             legend.text = element_text(size = 12)) +
       theme(legend.position = "none") +
-      geom_flat_violin(position = position_nudge(x = 0.2, y = 0), alpha = 0.8, adjust = 0.9, width = 0.5) #+ 
+      geom_flat_violin(position = position_nudge(x = 0.2, y = 0), alpha = 0.8, adjust = 0.9, width = 0.5) + 
+      ggpubr::stat_pvalue_manual(
+        tukey_res,
+        label = "p.adj.signif",   # show stars instead of p-values
+        size = 4,             # bigger stars
+        tip.length = 0.01
+      )
       #ggpubr::stat_compare_means(comparisons = comparisons, method = "wilcox.test", paired = FALSE, 
       #                           label = "p.signif", size = 5.5, vjust = 0.5, 
       #                           p.adjust.method = "BH")
@@ -3477,7 +3528,14 @@ output$boxplot_ui <- renderUI({
     # Create all pairwise comparisons
    # comparisons <- combn(levs, 2, simplify = FALSE)
     
-    comparison <- combn(unique(df$group), 2, simplify = FALSE)
+    # Perform Kruskal-Wallis test
+    kruskal_res <- rstatix::kruskal_test(df, value ~ group)
+    
+    # Dunn's post-hoc test with p-value adjustment + bracket positions
+    dunn_res <- rstatix::dunn_test(df, value ~ group, p.adjust.method = "BH") %>%
+      rstatix::add_xy_position(x = "group", step.increase = 0.1)
+    
+    #comparison <- combn(unique(df$group), 2, simplify = FALSE)
     p <- ggplot2::ggplot(df, aes(x = group, y = value, fill = group)) +
       geom_boxplot(alpha = 0.7, width = 0.3, outlier.colour = NA) +
       geom_jitter(width = 0.1, alpha = 0.5, shape = 21, size = 1.3) +
@@ -3492,10 +3550,18 @@ output$boxplot_ui <- renderUI({
             legend.title = element_text(face = "bold", size = 14),
             legend.text = element_text(size = 12)) +
       theme(legend.position = "none") +
-      geom_flat_violin(position = position_nudge(x = 0.2, y = 0), alpha = 0.8, adjust = 0.9, width = 0.5) #+ 
+      geom_flat_violin(position = position_nudge(x = 0.2, y = 0), alpha = 0.8, adjust = 0.9, width = 0.5) + 
+      ggpubr::stat_pvalue_manual(
+        dunn_res,
+        label = "p.adj.signif",
+        tip.length = 0.01,
+        hide.ns = FALSE,
+        size = 4
+      )
       #ggpubr::stat_compare_means(comparisons = comparisons, method = "wilcox.test", paired = FALSE, 
       #                           label = "p.signif", size = 5.5, vjust = 0.5, 
       #                           p.adjust.method = "BH")
+    
     # Only apply Set2 if ≤ 8 groups
     if(length(levs) <= 8) {
       p <- p + scale_fill_brewer(palette = "Set2") + scale_color_brewer(palette = "Set2")

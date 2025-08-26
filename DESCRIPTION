@@ -15,6 +15,7 @@ Imports:
     fontawesome,
     tidyverse,
     rstatix,
+    ggpubr,
     knitr,
     compositions,
     car,
