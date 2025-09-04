@@ -4882,7 +4882,7 @@ output$boxplot_ui <- renderUI({
     class='fa-solid fa-circle-info'
     data-bs-toggle='tooltip'
     data-bs-placement='right'
-    title='This scatterplot shows the relationship between the two selected variables. The red line represents a linear regression fit. If the points closely follow the line, the linearity assumption is reasonable; large deviations suggest the assumption may not hold.'
+    title='This scatterplot shows the relationship between the two selected variables. The orange line represents a linear regression fit. If the points closely follow the line, the linearity assumption is reasonable; large deviations suggest the assumption may not hold.'
     style='color:#2c3e50; cursor:pointer; font-size:16px; margin-left:10px;'></i>"))
         ),
         fluidRow(
