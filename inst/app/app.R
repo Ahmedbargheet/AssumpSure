@@ -2455,31 +2455,44 @@ output$levene_text <- renderUI({
     }, error = function(e) data.frame(p = NA))
   }
 
-## Mann-Whitney U test
+# # Mann-Whitney U test
+# run_mannwhitney_test <- function(df) {
+#   # ngroups <- nlevels(df$group)
+#   # if (ngroups == 1) {
+#   #   showNotification(
+#   #     strong("Only one group detected. Mann–Whitney U test requires exactly two groups."),
+#   #     type = "error", duration = 9
+#   #   )
+#   #   return(data.frame(p = NA))
+#   # }
+# 
+#   # if (ngroups > 2) {
+#   #   showNotification(
+#   #     strong("More than two groups detected. Check ANOVA assumptions first; if assumptions are violated, AssumpSure will guide you."),
+#   #     type = "error", duration = 9,
+#   #   )
+#   #   return(data.frame(p = NA))
+#   # }
+#   tryCatch({
+#     rstatix::wilcox_test(df, value ~ group, paired = F, detailed = T) %>%
+#       dplyr::mutate(method = "Mann-Whitney")
+#   }, error = function(e) data.frame(p = NA))
+# }
+ 
+   
+
+  ## Mann-Whitney U test
   run_mannwhitney_test <- function(df) {
     ngroups <- nlevels(df$group)
-    if (ngroups == 1) {
-      showNotification(
-        strong("Only one group detected. Mann–Whitney U test requires exactly two groups."), 
-        type = "error", duration = 9,
-      )
-      return(data.frame(p = NA))
-    }
+    if (ngroups != 2) return(data.frame(p = NA))
     
-    if (ngroups > 2) {
-      showNotification(
-        strong("More than two groups detected. Check ANOVA assumptions first; if assumptions are violated, AssumpSure will guide you."), 
-        type = "error", duration = 9,
-      )
-      return(data.frame(p = NA))
-    }
     tryCatch({
-      rstatix::wilcox_test(df, value ~ group, paired = F, detailed = T) %>% 
-        dplyr::mutate(method = "Mann-Whitney")
+      rstatix::wilcox_test(df, value ~ group, paired = FALSE, detailed = TRUE) %>%
+        dplyr::mutate(method = "Mann–Whitney")
     }, error = function(e) data.frame(p = NA))
   }
   
-
+  
 ## Wilcoxon signed-rank test
 run_wilcoxon_signed_test <- function(df) {
   ngroups <- nlevels(df$group)
@@ -2489,7 +2502,8 @@ run_wilcoxon_signed_test <- function(df) {
   if (length(unique(group_sizes)) != 1) return(data.frame(p = NA))
 
   tryCatch({
-    rstatix::wilcox_test(df, value ~ group, paired = TRUE, detailed = TRUE)
+    rstatix::wilcox_test(df, value ~ group, paired = TRUE, detailed = TRUE) %>% 
+      dplyr::mutate(method = "Mann-Whitney")
   }, error = function(e) data.frame(p = NA))
 }
   
@@ -2660,8 +2674,31 @@ run_wilcoxon_signed_test <- function(df) {
     run_test_clicked(Sys.time())
     
     df <- processed_data()
+
+    # Show this message for Mann-Whitney on every button click, not inside renderUI!
+    if (input$test_type == "mannwhitney") {
+      ngroups <- nlevels(df$group)
+      
+      if (ngroups == 1) {
+        showNotification(
+          strong("Only one group detected. Mann–Whitney U test requires exactly two groups."), 
+          type = "error", 
+          duration = 9
+        )
+        return()
+      }
+      
+      if (ngroups > 2) {
+        showNotification(
+          strong("More than two groups detected. Check ANOVA assumptions first; if assumptions are violated, AssumpSure will guide you."), 
+          type = "error", 
+          duration = 9
+        )
+        return()
+      }
+    }
     
-    # Show this message on every button click, not inside renderUI!
+    # Show this message for Wilcoxon on every button click, not inside renderUI!
     if (input$test_type == "wilcoxon_signed") {
       ngroups <- nlevels(df$group)
       
@@ -2685,7 +2722,7 @@ run_wilcoxon_signed_test <- function(df) {
       
       group_sizes <- table(df$group)
       if (length(unique(group_sizes)) != 1) {
-        showNotification(strong("Wilcoxon signed-rank test requires paired samples with equal group sizes. Use Mann–Whitney test for unpaired or unequal groups."), type = "error", duration = 9)
+        showNotification(strong("Wilcoxon signed-rank test requires paired samples with equal group sizes. For unpaired or unequal groups, check independent t-test assumptions first; if they are violated, AssumpSure will guide you."), type = "error", duration = 9)
         return()
       }
     }
