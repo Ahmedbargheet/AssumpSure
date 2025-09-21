@@ -58,19 +58,8 @@ With **AssumpSure**, you can:
 ## 📁 Installation
 **Important:** Please use R 4.2 or newer.
 
-### CRAN
 ```r
 install.packages("AssumpSure")
-```
-
-### GitHub
-```r
-# Install devtools if not already installed
-install.packages("devtools")
-library(devtools)
-
-# Install AssumpSure package
-devtools::install_github("Ahmedbargheet/AssumpSure")
 ```
 
 ---
