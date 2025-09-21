@@ -1374,7 +1374,7 @@ server <- function(input, output, session) {
         return()
       }
       if (ngroups > 2) {
-        showNotification(strong("More than two groups detected. Please use One-way ANOVA. Independent t-test is only for comparing exactly two groups."), type = "error")
+        showNotification(strong("More than two groups detected. Please use One-way ANOVA. Independent t-test is only for comparing exactly two groups."), type = "error", duration = 9)
         return()
       }
       if (any(group_sizes < 2)) {
@@ -1392,7 +1392,7 @@ server <- function(input, output, session) {
         return()
       }
       if (ngroups > 2) {
-        showNotification(strong("More than two groups detected. Please use One-way ANOVA. Paired t-test is only for comparing exactly two groups."), type = "error", duration = 5)
+        showNotification(strong("More than two groups detected. Please use One-way ANOVA. Paired t-test is only for comparing exactly two groups."), type = "error", duration = 9)
         return()
       }
       if (length(unique(group_sizes)) > 1) {
@@ -1408,10 +1408,28 @@ server <- function(input, output, session) {
     
     
     # ---- ANOVA GROUP CHECK ----
-    if (input$test_type == "anova" && ngroups < 3) {
-      showNotification(strong("Only two groups detected. Please use a t-test (independent or paired, as appropriate). One-way ANOVA is for three or more groups."), type = "error", duration = 8)
-      return()
+    if (input$test_type == "anova") {
+      ngroups <- nlevels(df$group)
+      
+      if (ngroups == 1) {
+        showNotification(
+          strong("Only one group detected. One-way ANOVA requires three or more groups."), 
+          type = "error", 
+          duration = 9
+        )
+        return()
+      }
+      
+      if (ngroups == 2) {
+        showNotification(
+          strong("Only two groups detected. Please use a t-test (independent or paired, as appropriate). One-way ANOVA is for three or more groups."), 
+          type = "error", 
+          duration = 9
+        )
+        return()
+      }
     }
+    
     processed_data(df)
   })
 
@@ -2440,8 +2458,19 @@ output$levene_text <- renderUI({
 ## Mann-Whitney U test
   run_mannwhitney_test <- function(df) {
     ngroups <- nlevels(df$group)
-    if (ngroups != 2) {
-      showNotification(strong("Mann-Whitney U test requires exactly 2 groups. For more than 2 groups, use Kruskal-Wallis."), type = "error")
+    if (ngroups == 1) {
+      showNotification(
+        strong("Only one group detected. Mann–Whitney U test requires exactly two groups."), 
+        type = "error", duration = 9,
+      )
+      return(data.frame(p = NA))
+    }
+    
+    if (ngroups > 2) {
+      showNotification(
+        strong("More than two groups detected. Check ANOVA assumptions first; if assumptions are violated, AssumpSure will guide you."), 
+        type = "error", duration = 9,
+      )
       return(data.frame(p = NA))
     }
     tryCatch({
@@ -2635,14 +2664,52 @@ run_wilcoxon_signed_test <- function(df) {
     # Show this message on every button click, not inside renderUI!
     if (input$test_type == "wilcoxon_signed") {
       ngroups <- nlevels(df$group)
-      if (ngroups != 2) {
-        showNotification(strong("Wilcoxon signed-rank test requires exactly 2 groups. For more than 2 groups, use Kruskal–Wallis."), type = "error", duration = 9)
+      
+      if (ngroups == 1) {
+        showNotification(
+          strong("Only one group detected. Wilcoxon signed-rank test requires exactly two groups."), 
+          type = "error", 
+          duration = 9
+        )
         return()
       }
+      
+      if (ngroups > 2) {
+        showNotification(
+          strong("More than two groups detected. Check ANOVA assumptions first; if assumptions are violated, AssumpSure will guide you."), 
+          type = "error", 
+          duration = 9
+        )
+        return()
+      }
+      
       group_sizes <- table(df$group)
       if (length(unique(group_sizes)) != 1) {
         showNotification(strong("Wilcoxon signed-rank test requires paired samples with equal group sizes. Use Mann–Whitney test for unpaired or unequal groups."), type = "error", duration = 9)
         return()
+      }
+    }
+    
+    # >>> NEW BLOCK FOR KRUSKAL HERE <<<
+    if (input$test_type == "kruskal") {
+      ngroups <- nlevels(df$group)
+      
+      if (ngroups == 1) {
+        showNotification(
+          strong("Only one group detected. Kruskal–Wallis requires at least three groups."), 
+          type = "error", 
+          duration = 9
+        )
+        return(NULL)
+      }
+      
+      if (ngroups == 2) {
+        showNotification(
+          strong("Only two groups detected. Check t-test assumptions (paired or independent, as appropriate) first; if they are violated, AssumpSure will guide you to the correct test."), 
+          type = "error", 
+          duration = 9
+        )
+        return(NULL)
       }
     }
 
@@ -2652,13 +2719,7 @@ run_wilcoxon_signed_test <- function(df) {
       if (!should_show_test_result()) return(NULL)
       df <- processed_data()
       if (is.null(df)) return(NULL)
-      if (input$test_type == "kruskal") {
-        ngroups <- nlevels(df$group)
-        if (ngroups < 3) {
-          showNotification(strong("Kruskal-Wallis requires at least 3 groups. For two groups, use the Wilcoxon or Mann–Whitney test (as appropriate)."), type = "error", duration = 5)
-          return(NULL)
-        }
-      }
+      
       if (!assumptions_met()) {
         div(
           style = "background-color: #e0e0e0; color: #222; padding: 14px; border-radius: 5px; font-size: 1.1em; margin-top: 10px;",
@@ -3364,7 +3425,7 @@ output$boxplot_ui <- renderUI({
       theme(legend.position = "none") +
       geom_flat_violin(position = position_nudge(x = 0.2, y = 0), alpha = 0.8, adjust = 0.9, width = 0.5) +
       ggpubr::stat_compare_means(comparisons = comparison, method = "t.test", paired = FALSE, 
-                                 label = "p.signif", size = 3.5, vjust = 0.2, tip.length = 0.02)
+                                 label = "p.signif", label.size = 3.5, vjust = 0.2, tip.length = 0.02)
     
   }
 
@@ -3400,7 +3461,7 @@ output$boxplot_ui <- renderUI({
       theme(legend.position = "none") +
       geom_flat_violin(position = position_nudge(x = 0.2, y = 0), alpha = 0.8, adjust = 0.9, width = 0.5) + 
       ggpubr::stat_compare_means(comparisons = comparison, method = "t.test", paired = TRUE, 
-                                 label = "p.signif", size = 3.5, vjust = 0.2, tip.length = 0.02)
+                                 label = "p.signif", label.size = 3.5, vjust = 0.2, tip.length = 0.02)
   }
 
   # --- Boxplot (Mann-Whitney) ---
@@ -3434,7 +3495,7 @@ output$boxplot_ui <- renderUI({
       theme(legend.position = "none") +
       geom_flat_violin(position = position_nudge(x = 0.2, y = 0), alpha = 0.8, adjust = 0.9, width = 0.5) +
       ggpubr::stat_compare_means(comparisons = comparison, method = "wilcox.test", paired = FALSE, 
-                                 label = "p.signif", size = 3.5, vjust = 0.2, tip.length = 0.02)
+                                 label = "p.signif", label.size = 3.5, vjust = 0.2, tip.length = 0.02)
   }
 
 # --- Boxplot (Wilcoxon signed-rank test) ---
@@ -3467,7 +3528,7 @@ output$boxplot_ui <- renderUI({
       theme(legend.position = "none") +
       geom_flat_violin(position = position_nudge(x = 0.2, y = 0), alpha = 0.8, adjust = 0.9, width = 0.5) + 
       ggpubr::stat_compare_means(comparisons = comparison, method = "wilcox.test", paired = TRUE, 
-                                 label = "p.signif", size = 3.5, vjust = 0.2, tip.length = 0.02)
+                                 label = "p.signif", label.size = 3.5, vjust = 0.2, tip.length = 0.02)
   }
 
 # --- Boxplot (Anova) ---
@@ -3712,7 +3773,7 @@ output$boxplot_ui <- renderUI({
     
     selectInput("cat1", 
                 tagList(
-                  "Select second categorical variable:",
+                  "Select first categorical variable:",
                   tags$span(
                     icon("info-circle", class = "fa-solid"),
                     `data-bs-toggle` = "tooltip",
