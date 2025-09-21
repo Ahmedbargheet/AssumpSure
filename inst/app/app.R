@@ -6403,7 +6403,7 @@ output$cor_matrix_download_ui <- renderUI({
         shinyjs::show("download_hist_before")
         req(lm_data(), input$lm_dep)
         df <- lm_data()
-        ggplot2::ggplot(df, aes_string(input$lm_dep)) +
+        ggplot2::ggplot(df, aes(x = .data[[input$lm_dep]])) +
           geom_histogram(aes(y = after_stat(density)), color = "black", fill = "#4db6ac", bins = 30) +
           geom_density(color = "#b2182b", size = 1.2, alpha = 0.7, show.legend = FALSE) +
           theme_test() + 
@@ -6444,7 +6444,7 @@ output$cor_matrix_download_ui <- renderUI({
       output$lm_hist_after <- renderPlot({
         req(lm_transformed_data(), input$lm_dep)
         df <- lm_transformed_data()
-        ggplot2::ggplot(df, aes_string(input$lm_dep)) +
+        ggplot2::ggplot(df, aes(x = .data[[input$lm_dep]])) +
           geom_histogram(aes(y = after_stat(density)), color = "black", fill = "#ffb74d", bins = 30) +
           geom_density(color = "#b2182b", size = 1.2, alpha = 0.7, show.legend = FALSE) +
           theme_test() +
@@ -6497,7 +6497,7 @@ output$cor_matrix_download_ui <- renderUI({
       content = function(file) {
         df <- lm_data()
         dep_var <- input$lm_dep
-        p <- ggplot2::ggplot(df, aes_string(dep_var)) +
+        p <- ggplot2::ggplot(df, aes(x = .data[[dep_var]])) +
           geom_histogram(aes(y = after_stat(density)), color = "black", fill = "#4db6ac", bins = 30) +
           geom_density(color = "#b2182b", size = 1.2, alpha = 0.7, show.legend = FALSE) +
           theme_test() + 
@@ -6554,7 +6554,7 @@ output$cor_matrix_download_ui <- renderUI({
       content = function(file) {
         req(lm_transformed_data(), input$lm_dep)
         df <- lm_transformed_data()
-        p <- ggplot2::ggplot(df, aes_string(input$lm_dep)) +
+        p <- ggplot2::ggplot(df, aes(x = .data[[input$lm_dep]])) +
           geom_histogram(aes(y = after_stat(density)), color = "black", fill = "#ffb74d", bins = 30) +
           geom_density(color = "#b2182b", size = 1.2, alpha = 0.7, show.legend = FALSE) +
           theme_test() + 
@@ -6908,7 +6908,7 @@ lmm_vars <- reactive({
         shinyjs::show("lmm_download_hist_before")
         req(lmm_data(), input$lmm_dep)
         df <- lmm_data()
-        ggplot2::ggplot(df, aes_string(input$lmm_dep)) +
+        ggplot2::ggplot(df, aes(x = .data[[input$lmm_dep]])) +
           geom_histogram(aes(y = after_stat(density)), color = "black", fill = "#4db6ac", bins = 30) +
           geom_density(color = "#b2182b", size = 1.2, alpha = 0.7, show.legend = FALSE) +
           theme_test() + 
@@ -6968,7 +6968,7 @@ lmm_vars <- reactive({
       content = function(file) {
         req(lmm_data(), input$lmm_dep)
         df <- lmm_data()
-        p <- ggplot2::ggplot(df, aes_string(input$lmm_dep)) +
+        p <- ggplot2::ggplot(df, aes(x = .data[[input$lmm_dep]])) +
           geom_histogram(aes(y = after_stat(density)), color = "black", fill = "#4db6ac", bins = 30) +
           geom_density(color = "#b2182b", size = 1.2, alpha = 0.7, show.legend = FALSE) +
           theme_test() + 
