@@ -1396,7 +1396,7 @@ server <- function(input, output, session) {
         return()
       }
       if (length(unique(group_sizes)) > 1) {
-        showNotification(strong("Paired t-test requires both groups to have equal sample size. If your data are not truly paired, consider using the independent t-test. Otherwise, check your data for missing or unmatched pairs."), type = "error", duration = 6)
+        showNotification(strong("Paired t-test requires both groups to have equal sample size. If your data are not truly paired, consider using the independent t-test. Otherwise, check your data for missing or unmatched pairs."), type = "error", duration = 9)
         return()
       }
       if (any(group_sizes < 3)) {
