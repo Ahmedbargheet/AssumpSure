@@ -65,11 +65,11 @@ install.packages("AssumpSure")
 ### GitHub
 ```r
 # Install devtools if not already installed
-install. packages("devtools")
-library (devtools)
+install.packages("devtools")
+library(devtools)
 
 # Install AssumpSure package
-devtools:: install_github("Ahmedbargheet/AssumpSure")
+devtools::install_github("Ahmedbargheet/AssumpSure")
 ```
 
 ---
