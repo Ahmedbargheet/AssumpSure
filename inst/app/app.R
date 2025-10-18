@@ -6296,7 +6296,9 @@ output$cor_matrix_download_ui <- renderUI({
               icon("info-circle", class = "fa-solid"),
               `data-bs-toggle` = "tooltip",
               `data-bs-placement` = "right",
-              title = "• If residuals are not normally distributed or variance is not constant (e.g., residuals vs. fitted plot shows a funnel shape), consider transforming the dependent variable (e.g., log, Box-Cox, or Yeo-Johnson).\n• If VIF > 10, remove or combine correlated predictors.\n• Check for influential outliers and consider removing or justifying them.",
+              title = "• If residuals are not normally distributed or variance is not constant (e.g., residuals vs. fitted plot shows a funnel shape), consider transforming the dependent variable (e.g., log, Box-Cox, or Yeo-Johnson).\n
+              • If VIF > 10, remove or combine correlated predictors.\n
+              • Check for influential outliers and consider removing or justifying them.",
               class = "no-print",
               style = "margin-left:8px; color: black; cursor: pointer;"
             )
@@ -7167,7 +7169,10 @@ lmm_vars <- reactive({
                   icon("info-circle", class = "fa-solid"),
                   `data-bs-toggle` = "tooltip",
                   `data-bs-placement` = "right",
-                  title = "• If residuals are not normally distributed or variance is not constant (e.g., residuals vs. fitted plot shows a funnel shape), consider transforming the dependent variable (e.g., log, Box-Cox, or Yeo-Johnson).\n• If VIF > 10, remove or combine correlated predictors.\n• Check for influential outliers and consider removing or justifying them.\n• If random effects are non-normal, consider simplifying or interpreting results with caution.",
+                  title = "• If residuals are not normally distributed or variance is not constant (e.g., residuals vs. fitted plot shows a funnel shape), consider transforming the dependent variable (e.g., log, Box-Cox, or Yeo-Johnson).\n
+                  • If VIF > 10, remove or combine correlated predictors.\n
+                  • Check for influential outliers and consider removing or justifying them.\n
+                  • If random effects are non-normal, consider simplifying or interpreting results with caution.",
                   class = "no-print",
                   style = "margin-left:8px; color: black; cursor: pointer;"
                 )
@@ -7811,7 +7816,9 @@ lmm_vars <- reactive({
                 icon("info-circle", class = "fa-solid"),
                 `data-bs-toggle` = "tooltip",
                 `data-bs-placement` = "right",
-                title = "• If binned residuals show poor fit, add relevant predictors, check variable coding, or include interaction terms.\n• If the residual Q-Q plot deviates strongly from the diagonal, reconsider model fit or add relevant predictors.\n• If VIF > 10, remove or combine correlated predictors.",
+                title = "• If binned residuals show poor fit, add relevant predictors, check variable coding, or include interaction terms.\n
+                • If the residual Q-Q plot deviates strongly from the diagonal, reconsider model fit or add relevant predictors.\n
+                • If VIF > 10, remove or combine correlated predictors.",
                 class = "no-print",
                 style = "margin-left:8px; color: black; cursor: pointer;"
               )
@@ -8201,7 +8208,9 @@ lmm_vars <- reactive({
                 icon("info-circle", class = "fa-solid"),
                 `data-bs-toggle` = "tooltip",
                 `data-bs-placement` = "right",
-                title = "• If observed residual variance (green) does not follow predicted variance (blue), add relevant predictors, add interaction terms, or use a zero-inflated negative binomial model (if excess zeros are present).\n• If the residual Q-Q plot deviates strongly from the diagonal, reconsider model fit or add relevant predictors.\n• If VIF > 10, remove or combine correlated predictors.",
+                title = "• If observed residual variance (green) does not follow predicted variance (blue), add relevant predictors, add interaction terms, or use a zero-inflated negative binomial model (if excess zeros are present).\n
+                • If the residual Q-Q plot deviates strongly from the diagonal, reconsider model fit or add relevant predictors.\n
+                • If VIF > 10, remove or combine correlated predictors.",
                 class = "no-print",
                 style = "margin-left:8px; color: black; cursor: pointer;"
               )
@@ -8656,7 +8665,9 @@ lmm_vars <- reactive({
                 icon("info-circle", class = "fa-solid"),
                 `data-bs-toggle` = "tooltip",
                 `data-bs-placement` = "right",
-                title = "• If many residual points fall outside the error bounds, add relevant predictors or interaction terms.\n• If the residual Q-Q plot deviates strongly from the diagonal, reconsider model fit or add relevant predictors.\n• If VIF > 10, remove or combine correlated predictors.",
+                title = "• If many residual points fall outside the error bounds, add relevant predictors or interaction terms.\n
+                • If the residual Q-Q plot deviates strongly from the diagonal, reconsider model fit or add relevant predictors.\n
+                • If VIF > 10, remove or combine correlated predictors.",
                 class = "no-print",
                 style = "margin-left:8px; color: black; cursor: pointer;"
               )
@@ -9018,7 +9029,9 @@ lmm_vars <- reactive({
                 icon("info-circle", class = "fa-solid"),
                 `data-bs-toggle` = "tooltip",
                 `data-bs-placement` = "right",
-                title = "• If observed residual variance (green) does not follow predicted variance (blue), use a negative binomial or zero-inflated model if needed, as this might indicate overdispersion.\n• If the residual Q-Q plot deviates strongly from the diagonal, reconsider model fit or add relevant predictors.\n• If VIF > 10, remove or combine correlated predictors.",
+                title = "• If observed residual variance (green) does not follow predicted variance (blue), use a negative binomial or zero-inflated model if needed, as this might indicate overdispersion.\n
+                • If the residual Q-Q plot deviates strongly from the diagonal, reconsider model fit or add relevant predictors.\n
+                • If VIF > 10, remove or combine correlated predictors.",
                 class = "no-print",
                 style = "margin-left:8px; color: black; cursor: pointer;"
               )
@@ -9325,7 +9338,9 @@ lmm_vars <- reactive({
                 icon("info-circle", class = "fa-solid"),
                 `data-bs-toggle` = "tooltip",
                 `data-bs-placement` = "right",
-                title = "• If observed residual variance (green) does not follow predicted variance (blue), consider adding relevant predictors, or interaction terms.\n• If the residual Q-Q plot deviates strongly from the diagonal, reconsider model fit or add relevant predictors.\n• If VIF > 10, remove or combine correlated predictors.",
+                title = "• If observed residual variance (green) does not follow predicted variance (blue), consider adding relevant predictors, or interaction terms.\n
+                • If the residual Q-Q plot deviates strongly from the diagonal, reconsider model fit or add relevant predictors.\n
+                • If VIF > 10, remove or combine correlated predictors.",
                 class = "no-print",
                 style = "margin-left:8px; color: black; cursor: pointer;"
               )
