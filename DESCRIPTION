@@ -28,6 +28,7 @@ Imports:
     bestNormalize,
     DHARMa,
     lmerTest,
+    lme4,
     MASS,
     nnet,
     broom,
