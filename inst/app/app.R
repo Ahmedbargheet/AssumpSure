@@ -6782,7 +6782,10 @@ lmm_vars <- reactive({
     observeEvent(list(input$lmm_file, input$lmm_indep), {
       req(input$lmm_file)
       df <- read.csv(input$lmm_file$datapath)
-      fact_vars <- names(df)[sapply(df, function(x) is.factor(x) || is.character(x))]
+      #fact_vars <- names(df)[sapply(df, function(x) is.factor(x) || is.character(x))]
+      fact_vars <- names(df)[sapply(df, function(x)
+        is.factor(x) || is.character(x) || (is.numeric(x) && any(duplicated(x)))
+      )]
       indep <- input$lmm_indep
       
       # Exclude independent variables from random effect choices
@@ -6807,7 +6810,10 @@ lmm_vars <- reactive({
     output$lmm_re_ui <- renderUI({
       req(input$lmm_file)
       df <- read.csv(input$lmm_file$datapath)
-      fact_vars <- names(df)[sapply(df, function(x) is.factor(x) || is.character(x))]
+      #fact_vars <- names(df)[sapply(df, function(x) is.factor(x) || is.character(x))]
+      fact_vars <- names(df)[sapply(df, function(x)
+        is.factor(x) || is.character(x) || (is.numeric(x) && any(duplicated(x)))
+      )]
       indep <- input$lmm_indep
       choices <- setdiff(fact_vars, indep)
       
