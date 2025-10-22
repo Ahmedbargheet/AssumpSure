@@ -851,18 +851,29 @@ function corScreenshotWithoutScatterBtn() {
          style = "color: #2c3e50; margin-top: 30px; font-weight: 600;"),
 
       p("To understand the expected format and test the app features, download and explore the sample dataset:"),
-
+      
       div(
         style = "text-align: center; margin: 20px 0; padding: 20px; border-radius: 12px; background-color: #f0f7fb; border: 1px solid #ddd;",
-
         icon("file-csv", class = "fa-2x", style = "color: #3A9BB2; margin-bottom: 10px;"),
         h5("Sample Data for Testing", style = "margin-bottom: 10px; font-weight: 600;"),
-        a(href = "https://github.com/Ahmedbargheet/AssumpSure/tree/main/inst/extdata/infants.csv", # correct
-          "Download Sample Data (CSV)",
-          target = "_blank",
-          style = "font-size: 16px; text-decoration: none; color: #3A9BB2; font-weight: 500;"
+        downloadButton(
+          outputId = "download_sample_data",
+          label = "Download Sample Data (CSV)",
+          class = "btn btn-primary"
         )
       ),
+
+      # div(
+      #   style = "text-align: center; margin: 20px 0; padding: 20px; border-radius: 12px; background-color: #f0f7fb; border: 1px solid #ddd;",
+      # 
+      #   icon("file-csv", class = "fa-2x", style = "color: #3A9BB2; margin-bottom: 10px;"),
+      #   h5("Sample Data for Testing", style = "margin-bottom: 10px; font-weight: 600;"),
+      #   a(href = "https://github.com/Ahmedbargheet/AssumpSure/tree/main/inst/extdata/infants.csv", # correct
+      #     "Download Sample Data (CSV)",
+      #     target = "_blank",
+      #     style = "font-size: 16px; text-decoration: none; color: #3A9BB2; font-weight: 500;"
+      #   )
+      # ),
 
       p("The sample file includes an example of long-format data with timepoints, groups, and numeric variables.",
         style = "font-size: 0.9em; color: #666; text-align: center;"),
@@ -1038,6 +1049,21 @@ function corScreenshotWithoutScatterBtn() {
 
 # ----- SERVER -----
 server <- function(input, output, session) {
+  
+
+# Download sample data ----------------------------------------------------
+  output$download_sample_data <- downloadHandler(
+    filename = function() paste0("infants_", Sys.Date(), ".csv"),
+    content = function(file) {
+      src <- system.file("extdata", "infants.csv", package = "AssumpSure")
+      if (nzchar(src)) {
+        file.copy(src, file, overwrite = TRUE)
+      } else {
+        stop("Sample data not found in inst/extdata/infants.csv")
+      }
+    }
+  )
+  
 
   # --- Data Loader ---
   data <- reactive({

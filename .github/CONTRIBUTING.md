@@ -1,47 +1,40 @@
 # Contributing to AssumpSure
 
-This outlines how to propose a change to AssumpSure.
-For a detailed discussion on contributing to this and other tidyverse packages, please see the [development contributing guide](https://rstd.io/tidy-contrib) and our [code review principles](https://code-review.tidyverse.org/).
+Thank you for your interest in improving **AssumpSure**.
 
-## Fixing typos
+This package includes analytical functions and a Shiny application for assessing statistical assumptions.  
+Although it is mainly maintained by a single author, feedback and community contributions are welcome.
 
-You can fix typos, spelling mistakes, or grammatical errors in the documentation directly using the GitHub web interface, as long as the changes are made in the _source_ file. 
-This generally means you'll need to edit [roxygen2 comments](https://roxygen2.r-lib.org/articles/roxygen2.html) in an `.R`, not a `.Rd` file. 
-You can find the `.R` file that generates the `.Rd` by reading the comment in the first line.
+## Fixing typos or small edits
+You can correct typos or small documentation issues directly on GitHub using the web interface.  
+Please edit the **source** `.R` files (roxygen comments) rather than the generated `.Rd` documentation files.
 
-## Bigger changes
+## Reporting bugs or suggesting features
+If you encounter a bug, have a question, or would like to suggest an enhancement, please open a new issue on the [GitHub Issues page](../../issues).  
+When reporting a problem, include a minimal reproducible example, your R version, and operating system details if relevant.
 
-If you want to make a bigger change, it's a good idea to first file an issue and make sure someone from the team agrees that it’s needed. 
-If you’ve found a bug, please file an issue that illustrates the bug with a minimal 
-[reprex](https://www.tidyverse.org/help/#reprex) (this will also help you write a unit test, if needed).
-See our guide on [how to create a great issue](https://code-review.tidyverse.org/issues/) for more advice.
+## Contributing code
+If you wish to contribute code (for example, a bug fix or small feature):
 
-### Pull request process
+1. **Fork** the repository and clone it locally.  
+   You can do this easily in R with:  
+   `usethis::create_from_github("Ahmedbargheet/AssumpSure", fork = TRUE)`
 
-*   Fork the package and clone onto your computer. If you haven't done this before, we recommend using `usethis::create_from_github("Ahmedbargheet/AssumpSure", fork = TRUE)`.
+2. Install development dependencies with:  
+   `devtools::install_dev_deps()`
 
-*   Install all development dependencies with `devtools::install_dev_deps()`, and then make sure the package passes R CMD check by running `devtools::check()`. 
-    If R CMD check doesn't pass cleanly, it's a good idea to ask for help before continuing. 
-*   Create a Git branch for your pull request (PR). We recommend using `usethis::pr_init("brief-description-of-change")`.
+3. Make your changes and ensure that the package passes all checks by running:  
+   `devtools::check()`
 
-*   Make your changes, commit to git, and then create a PR by running `usethis::pr_push()`, and following the prompts in your browser.
-    The title of your PR should briefly describe the change.
-    The body of your PR should contain `Fixes #issue-number`.
+4. Create a new branch and submit a pull request (PR) with a clear description of the changes.  
+   The PR title should briefly describe the update, and the body may include `Fixes #issue-number` if it resolves a reported issue.
 
-*  For user-facing changes, add a bullet to the top of `NEWS.md` (i.e. just below the first header). Follow the style described in <https://style.tidyverse.org/news.html>.
-
-### Code style
-
-*   New code should follow the tidyverse [style guide](https://style.tidyverse.org). 
-    You can use the [styler](https://CRAN.R-project.org/package=styler) package to apply these styles, but please don't restyle code that has nothing to do with your PR.  
-
-*  We use [roxygen2](https://cran.r-project.org/package=roxygen2), with [Markdown syntax](https://cran.r-project.org/web/packages/roxygen2/vignettes/rd-formatting.html), for documentation.  
-
-*  We use [testthat](https://cran.r-project.org/package=testthat) for unit tests. 
-   Contributions with test cases included are easier to accept.  
+## Code style and testing
+- Follow the [R style guide](https://style.tidyverse.org) for consistent formatting.  
+- Use [roxygen2](https://cran.r-project.org/package=roxygen2) for documentation.  
+- Automated tests are handled using [testthat](https://cran.r-project.org/package=testthat).  
+  Please include or update relevant tests for any new functionality.
 
 ## Code of Conduct
-
-Please note that the AssumpSure project is released with a
-[Contributor Code of Conduct](CODE_OF_CONDUCT.md). By contributing to this
-project you agree to abide by its terms.
+Participation in this project is governed by the [Code of Conduct](../CODE_OF_CONDUCT.md).  
+By contributing to this project, you agree to abide by its terms.

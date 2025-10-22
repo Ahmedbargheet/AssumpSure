@@ -12,3 +12,8 @@ Runs the Shiny app.
 \description{
 Launch the AssumpSure Shiny App
 }
+\examples{
+if (interactive()) {
+  launch_app()
+}
+}
