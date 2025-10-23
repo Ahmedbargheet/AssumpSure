@@ -1053,16 +1053,17 @@ server <- function(input, output, session) {
 
 # Download sample data ----------------------------------------------------
   output$download_sample_data <- downloadHandler(
-    filename = function() paste0("infants_", Sys.Date(), ".csv"),
-    content = function(file) {
+    filename    = function() paste0("infants_", Sys.Date(), ".csv"),
+    contentType = "text/csv",
+    content     = function(file) {
       src <- system.file("extdata", "infants.csv", package = "AssumpSure")
-      if (nzchar(src)) {
-        file.copy(src, file, overwrite = TRUE)
-      } else {
-        stop("Sample data not found in inst/extdata/infants.csv")
-      }
+      if (!nzchar(src) || !file.exists(src)) src <- "www/infants.csv"
+      if (!file.exists(src)) stop("Sample data not found.")
+      file.copy(src, file, overwrite = TRUE)
     }
   )
+  
+  
   
 
   # --- Data Loader ---
