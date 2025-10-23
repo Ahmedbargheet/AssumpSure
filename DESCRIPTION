@@ -39,7 +39,8 @@ Imports:
     brglm2,
     glmmTMB,
     effectsize,
-    coin
+    coin,
+    dplyr
 Depends: R (>= 4.2.0)
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
