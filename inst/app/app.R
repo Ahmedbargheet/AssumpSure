@@ -1065,9 +1065,9 @@ server <- function(input, output, session) {
   
 
 # Session handling and safe interruption ----------------------------------
-  session$onSessionEnded(function() {
-    stopApp()
-  })
+  # session$onSessionEnded(function() {
+  #   stopApp()
+  # })
   
   safe_run <- function(expr) {
     tryCatch(
