@@ -1063,6 +1063,23 @@ server <- function(input, output, session) {
     }
   )
   
+
+# Session handling and safe interruption ----------------------------------
+  session$onSessionEnded(function() {
+    stopApp()
+  })
+  
+  safe_run <- function(expr) {
+    tryCatch(
+      force(expr),
+      interrupt = function(e) { invisible(NULL) },          # user hit Esc/Stop
+      error = function(e) {
+        if (grepl("interrupted|type \\(29\\)", conditionMessage(e))) return(invisible(NULL))
+        showNotification("Computation aborted.", type = "message", duration = 5)
+        invisible(NULL)
+      }
+    )
+  }
   
   
 
