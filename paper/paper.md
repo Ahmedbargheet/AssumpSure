@@ -46,7 +46,7 @@ Figure 1: The workflow from data upload to test selection, guiding users to swit
 
 
 # Illustrative Example
-A researcher uploads a CSV dataset, imported using the readr package [@wickham2024package] with bacterial alpha diversity (Shannon index) across three countries. *AssumpSure* detects variable types, restricting invalid selections (e.g., excluding count variables for ANOVA). Selecting one-way ANOVA triggers normality (Shapiro-Wilk) and homogeneity (Levene’s) checks using the rstatix package [@kassambara2019rstatix], visualized via QQ plots and histograms with ggplot2 [@wickham2011ggplot2] with tooltips implemented using the shiny package [@chang2015package] (which provides the icon() function and HTML integration for Bootstrap tooltips). A red indicator signals non-normality and heterogeneous variances, recommending Kruskal-Wallis (Figure 2). 
+A researcher uploads a CSV dataset, imported using the readr package [@wickham2024package] with bacterial alpha diversity (Shannon index) across three countries. This example uses the `infants.csv` dataset included with *AssumpSure*. *AssumpSure* detects variable types, restricting invalid selections (e.g., excluding count variables for ANOVA). Selecting one-way ANOVA triggers normality (Shapiro-Wilk) and homogeneity (Levene’s) checks using the rstatix package [@kassambara2019rstatix], visualized via QQ plots and histograms with ggplot2 [@wickham2011ggplot2] with tooltips implemented using the shiny package [@chang2015package] (which provides the icon() function and HTML integration for Bootstrap tooltips). A red indicator signals non-normality and heterogeneous variances, recommending Kruskal-Wallis (Figure 2). 
 
 ![](figure2.png)
 Figure 2: The assumption checking report.
