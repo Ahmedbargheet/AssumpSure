@@ -114,7 +114,7 @@ The examples below demonstrate how to use each analysis module in *AssumpSure*.
 All example datasets are included [here](https://github.com/Ahmedbargheet/AssumpSure/tree/main/inst/extdata) or downloadable within the app (Help tab).
 Screenshots display the expected outputs for verifying functionality and reproducibility.
 
-**1. Independent t-test**  
+### 1. Independent t-test  
 **Dataset:** `t-test.csv`  
 **Steps:**  
 - Launch the app:
@@ -127,7 +127,7 @@ AssumpSure::launch_app()
   
 ![t-test example](inst/app/www/independent_t.test.png)
 
-**2. One-way ANOVA**  
+### 2. One-way ANOVA  
 **Dataset:** `plantgrowth.csv`  
 - Upload `plantgrowth.csv` in the **Continuous Data Tests** tab.  
 - Choose **One-way ANOVA**.
@@ -140,7 +140,7 @@ AssumpSure::launch_app()
 ![ANOVA_test_1 example](inst/app/www/ANOVA_test_1.png)
 
 
-**3. Fisher's exact test**  
+### 3. Fisher's exact test  
 **Dataset:** `chi_fisher.csv`  
 - Upload `chi_fisher.csv` in the **Fisher & Chi-square** tab.
 - Choose **sex** as first categorical variable and **location** as second categorical variable.
@@ -151,7 +151,7 @@ AssumpSure::launch_app()
 ![fisher example](inst/app/www/fisher.png)
 
 
-**3. Linear Model**  
+### 3. Linear Model  
 **Dataset:** `infants.csv`  
 - Upload `infants.csv` in the **Regression Models** tab.
 - Choose **weight** as dependent variable and **Treatment, gender, country, nutrients, and diarrhea** as independent variables.
@@ -163,7 +163,7 @@ AssumpSure::launch_app()
 ![LM3 example](inst/app/www/LM3.png)
 
 
-**4. Correlation**  
+### 4. Correlation  
 **Dataset:** `correlation.csv`  
 - Upload `correlation.csv` in the **Correlation** tab.
 - Choose **Pearson** from the **Correlation Method** drop menu and click **Check Assumptions**.
@@ -171,7 +171,7 @@ AssumpSure::launch_app()
 ![correlation example](inst/app/www/correlation.png)
 
 
-**5. Correlation for compositional data**  
+### 5. Correlation for compositional data 
 **Dataset:** `bacteria_for_correlation.csv`  
 - Upload `bacteria_for_correlation.csv` in the **Correlation** tab.
 - Tick **Apply CLR transformation**, and set **Remove features** to **20%** using the slider
