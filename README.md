@@ -111,7 +111,7 @@ Bargheet, Ahmed. "AssumpSure: A User-Friendly R Shiny Package for Automated Vali
 ---
 ## 📚 Reproducible Examples
 The examples below demonstrate how to use each analysis module in *AssumpSure*.
-All example datasets are included [here](https://github.com/Ahmedbargheet/AssumpSure/tree/main/inst/extdata) or downloadable within the app (Help tab).
+The `infants.csv` dataset is downloadable within the app (Help tab), while the remaining example datasets are available [here](https://github.com/Ahmedbargheet/AssumpSure/tree/main/inst/extdata) on GitHub.
 Screenshots display the expected outputs for verifying functionality and reproducibility.
 
 ### 1. Independent t-test  
