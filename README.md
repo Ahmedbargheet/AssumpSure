@@ -158,9 +158,9 @@ AssumpSure::launch_app()
 - Choose **Inverse normal** from the **Transform dependent variable** drop menu and click on **Check Assumptions**.
 - Then click on **run LM** and **Plot Forest**.
   
-![LM example](inst/app/www/LM.png)
-![LM2 example](inst/app/www/LM2.png)
-![LM3 example](inst/app/www/LM3.png)
+![LM example](inst/app/www/LM11.png)
+![LM2 example](inst/app/www/LM211.png)
+![LM3 example](inst/app/www/LM311.png)
 
 
 ### 4. Correlation  
