@@ -1997,7 +1997,7 @@ output$levene_text <- renderUI({
   histogram_plot_independent <- function(df) {
     ggplot2::ggplot(df, aes(x = value, fill = group, colour = group)) +
       geom_histogram(aes(y = after_stat(density)), bins = 30, color = "black", alpha = 0.7) +
-      geom_density(color = "#b2182b", size = 1.2, alpha = 0.7, show.legend = FALSE) +
+      geom_density(color = "#b2182b", linewidth = 1.2, alpha = 0.7, show.legend = FALSE) +
       theme_test() +
       scale_color_brewer(palette = "Set2") +
       scale_fill_brewer(palette = "Set2") +
@@ -2025,7 +2025,7 @@ output$levene_text <- renderUI({
     ggplot2::ggplot(data.frame(diff = diff), aes(x = diff)) +
       geom_histogram(aes(y = after_stat(density)), bins = 30, color = "black", 
                      fill = "#66C2A5", alpha = 0.7) +
-      geom_density(color = "#b2182b", fill = "#66C2A5", size = 1.2, alpha = 0.7, show.legend = FALSE) +
+      geom_density(color = "#b2182b", fill = "#66C2A5", linewidth = 1.2, alpha = 0.7, show.legend = FALSE) +
       theme_test() +
       scale_color_brewer(palette = "Set2") + 
       scale_fill_brewer(palette = "Set2") +
@@ -2057,7 +2057,7 @@ output$levene_text <- renderUI({
     
     ggplot2::ggplot(df, ggplot2::aes(x = value, fill = group, colour = group)) +
       ggplot2::geom_histogram(ggplot2::aes(y = after_stat(density)), bins = 30, color = "black", alpha = 0.7) +
-      ggplot2::geom_density(color = "#b2182b", size = 1.2, alpha = 0.7, show.legend = FALSE) +
+      ggplot2::geom_density(color = "#b2182b", linewidth = 1.2, alpha = 0.7, show.legend = FALSE) +
       ggplot2::theme_test() +
       pal_color + pal_fill +
       ggplot2::facet_wrap(~group) +
@@ -6494,7 +6494,7 @@ Normality of Residuals:\n→ If points deviate strongly from the line (especiall
         df <- lm_data()
         ggplot2::ggplot(df, aes(x = .data[[input$lm_dep]])) +
           geom_histogram(aes(y = after_stat(density)), color = "black", fill = "#4db6ac", bins = 30) +
-          geom_density(color = "#b2182b", size = 1.2, alpha = 0.7, show.legend = FALSE) +
+          geom_density(color = "#b2182b", linewidth = 1.2, alpha = 0.7, show.legend = FALSE) +
           theme_test() + 
           theme(axis.title.x = element_text(colour = "black", face = "bold", size = 15)) + 
           theme(axis.title.y = element_text(colour = "black", face = "bold", size = 15)) + 
@@ -6535,7 +6535,7 @@ Normality of Residuals:\n→ If points deviate strongly from the line (especiall
         df <- lm_transformed_data()
         ggplot2::ggplot(df, aes(x = .data[[input$lm_dep]])) +
           geom_histogram(aes(y = after_stat(density)), color = "black", fill = "#ffb74d", bins = 30) +
-          geom_density(color = "#b2182b", size = 1.2, alpha = 0.7, show.legend = FALSE) +
+          geom_density(color = "#b2182b", linewidth = 1.2, alpha = 0.7, show.legend = FALSE) +
           theme_test() +
           theme(axis.title.x = element_text(colour = "black", face = "bold", size = 15)) + 
           theme(axis.title.y = element_text(colour = "black", face = "bold", size = 15)) + 
@@ -6588,7 +6588,7 @@ Normality of Residuals:\n→ If points deviate strongly from the line (especiall
         dep_var <- input$lm_dep
         p <- ggplot2::ggplot(df, aes(x = .data[[dep_var]])) +
           geom_histogram(aes(y = after_stat(density)), color = "black", fill = "#4db6ac", bins = 30) +
-          geom_density(color = "#b2182b", size = 1.2, alpha = 0.7, show.legend = FALSE) +
+          geom_density(color = "#b2182b", linewidth = 1.2, alpha = 0.7, show.legend = FALSE) +
           theme_test() + 
           labs(title = "Before Transformation", x = dep_var, y = "Density") +
           theme(
@@ -6645,7 +6645,7 @@ Normality of Residuals:\n→ If points deviate strongly from the line (especiall
         df <- lm_transformed_data()
         p <- ggplot2::ggplot(df, aes(x = .data[[input$lm_dep]])) +
           geom_histogram(aes(y = after_stat(density)), color = "black", fill = "#ffb74d", bins = 30) +
-          geom_density(color = "#b2182b", size = 1.2, alpha = 0.7, show.legend = FALSE) +
+          geom_density(color = "#b2182b", linewidth = 1.2, alpha = 0.7, show.legend = FALSE) +
           theme_test() + 
           labs(title = "After Transformation", x = paste0(input$lm_dep, " (transformed)"), y = "Density") +
           theme(
@@ -7005,7 +7005,7 @@ lmm_vars <- reactive({
         df <- lmm_data()
         ggplot2::ggplot(df, aes(x = .data[[input$lmm_dep]])) +
           geom_histogram(aes(y = after_stat(density)), color = "black", fill = "#4db6ac", bins = 30) +
-          geom_density(color = "#b2182b", size = 1.2, alpha = 0.7, show.legend = FALSE) +
+          geom_density(color = "#b2182b", linewidth = 1.2, alpha = 0.7, show.legend = FALSE) +
           theme_test() + 
           theme(axis.title.x = element_text(colour = "black", face = "bold", size = 15)) + 
           theme(axis.title.y = element_text(colour = "black", face = "bold", size = 15)) + 
@@ -7046,7 +7046,7 @@ lmm_vars <- reactive({
         plot_df <- data.frame(val = trans_x)
         ggplot2::ggplot(plot_df, aes(val)) +
           geom_histogram(aes(y = after_stat(density)), color = "black", fill = "#ffb74d", bins = 30) +
-          geom_density(color = "#b2182b", size = 1.2, alpha = 0.7, show.legend = FALSE) +
+          geom_density(color = "#b2182b", linewidth = 1.2, alpha = 0.7, show.legend = FALSE) +
           theme_test() + 
           theme(axis.title.x = element_text(colour = "black", face = "bold", size = 15)) + 
           theme(axis.title.y = element_text(colour = "black", face = "bold", size = 15)) + 
@@ -7065,7 +7065,7 @@ lmm_vars <- reactive({
         df <- lmm_data()
         p <- ggplot2::ggplot(df, aes(x = .data[[input$lmm_dep]])) +
           geom_histogram(aes(y = after_stat(density)), color = "black", fill = "#4db6ac", bins = 30) +
-          geom_density(color = "#b2182b", size = 1.2, alpha = 0.7, show.legend = FALSE) +
+          geom_density(color = "#b2182b", linewidth = 1.2, alpha = 0.7, show.legend = FALSE) +
           theme_test() + 
           labs(title = "Before Transformation", x = input$lmm_dep, y = "Density") +
           theme(
@@ -7094,7 +7094,7 @@ lmm_vars <- reactive({
         plot_df <- data.frame(val = trans_x)
         p <- ggplot2::ggplot(plot_df, aes(val)) +
           geom_histogram(aes(y = after_stat(density)), color = "black", fill = "#ffb74d", bins = 30) +
-          geom_density(color = "#b2182b", size = 1.2, alpha = 0.7) +
+          geom_density(color = "#b2182b", linewidth = 1.2, alpha = 0.7) +
           theme_test() +
           labs(title = "After Transformation", x = paste0(input$lmm_dep, " (transformed)"), y = "Density") +
           theme(
