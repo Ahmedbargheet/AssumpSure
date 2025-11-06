@@ -2,7 +2,6 @@
 
 [![](https://www.r-pkg.org/badges/version/AssumpSure?color=orange)](https://cran.r-project.org/package=AssumpSure) ![License: GPL-3](https://img.shields.io/badge/license-GPL--3-blue.svg) [![Project Status: Active - The project has reached a stable, usable state and is being actively developed.](https://www.repostatus.org/badges/latest/active.svg)](https://www.repostatus.org/#active) 
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.17539689.svg)](https://doi.org/10.5281/zenodo.17539689) 
-[![DOI](https://img.shields.io/badge/DOI-10.5281%2Fzenodo.17539689-blue)](https://doi.org/10.5281/zenodo.17539689)
 
 
 
