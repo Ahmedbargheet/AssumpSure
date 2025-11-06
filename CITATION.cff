@@ -1,0 +1,26 @@
+cff-version: "1.2.0"
+authors:
+- family-names: Bargheet
+  given-names: Ahmed
+  orcid: "https://orcid.org/0000-0002-0363-0249"
+contact:
+- family-names: Bargheet
+  given-names: Ahmed
+  orcid: "https://orcid.org/0000-0002-0363-0249"
+doi: 10.5281/zenodo.17539689
+message: If you use this software, please cite our article in the Journal of Open Source Software (JOSS).
+preferred-citation:
+  authors:
+  - family-names: Bargheet
+    given-names: Ahmed
+    orcid: "https://orcid.org/0000-0002-0363-0249"
+  date-published: 2025-11-XX
+  doi: 10.21105/joss.xxxxx
+  issn: 2475-9066
+  journal: Journal of Open Source Software
+  publisher:
+    name: Open Journals
+  title: "AssumpSure: a user-friendly R Shiny package for automated validation of statistical assumptions and appropriate test selection"
+  type: article
+  url: "https://joss.theoj.org/papers/10.21105/joss.xxxxx"
+title: "AssumpSure: a user-friendly R Shiny package for automated validation of statistical assumptions and appropriate test selection"
