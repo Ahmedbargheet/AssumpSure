@@ -1014,6 +1014,27 @@ function corScreenshotWithoutScatterBtn() {
   ),
   
   hr(),
+  
+  # Citation Info
+  h4(icon("book", style = "margin-right: 8px; color: #E3A599;"), "Citation",
+     style = "color: #2c3e50; font-weight: 600;"),
+  
+  p(
+    HTML('If you use <strong>AssumpSure</strong> in your research, please cite:'),
+    style = "color: #444; text-align: left; margin-top: 10px;"
+  ),
+  
+  p(
+    HTML('<strong>Bargheet, A.</strong> (2025). 
+        AssumpSure: a user-friendly R Shiny package for automated validation of statistical assumptions and appropriate test selection. 
+        <i>Journal of Open Source Software,</i> 10(115), 9286. 
+        <a href="https://doi.org/10.21105/joss.09286" target="_blank">https://doi.org/10.21105/joss.09286</a>'),
+    style = "color: #444; text-align: left; margin-top: 10px;"
+  ),
+  
+  hr(),
+  
+  
 
       # Contact Info
   h4(icon("envelope", style = "margin-right: 8px; color: #E3A599;"), "Need Help?",
