@@ -1,0 +1,18 @@
+bibentry(
+  bibtype = "Article",
+  title = "AssumpSure: a user-friendly R Shiny package for automated validation of statistical assumptions and appropriate test selection",
+  author = person("Ahmed", "Bargheet", role = c("aut", "cre"),
+                  comment = "https://orcid.org/0000-0002-0363-0249"),
+  journal = "Journal of Open Source Software",
+  year = "2025",
+  volume = "10",
+  number = "115",
+  pages = "9286",
+  doi = "10.21105/joss.09286",
+  textVersion = paste(
+    "Bargheet, A. (2025). AssumpSure: a user-friendly R Shiny package for automated",
+    "validation of statistical assumptions and appropriate test selection.",
+    "Journal of Open Source Software, 10(115), 9286.",
+    "https://doi.org/10.21105/joss.09286"
+  )
+)
