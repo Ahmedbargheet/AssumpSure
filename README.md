@@ -110,7 +110,7 @@ https://ahmed-bargheet.shinyapps.io/AssumpSure/
 ## 📖 Citation
 If you use **AssumpSure** in your research, please cite it as below.
 
-Bargheet, Ahmed. "AssumpSure: A User-Friendly R Shiny Package for Automated Validation of Statistical Assumptions and Appropriate Test Selection." Available at SSRN: https://ssrn.com/abstract=5352013 or http://dx.doi.org/10.2139/ssrn.5352013.
+Bargheet, A. (2025). AssumpSure: a user-friendly R Shiny package for automated validation of statistical assumptions and appropriate test selection. Journal of Open Source Software, 10(115), 9286. https://doi.org/10.21105/joss.09286
 
 ---
 ## 📚 Reproducible Examples
