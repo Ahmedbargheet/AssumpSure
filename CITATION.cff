@@ -8,19 +8,26 @@ contact:
   given-names: Ahmed
   orcid: "https://orcid.org/0000-0002-0363-0249"
 doi: 10.5281/zenodo.17539689
-message: If you use this software, please cite our article in the Journal of Open Source Software (JOSS).
+message: If you use this software, please cite our article in the
+  Journal of Open Source Software.
 preferred-citation:
   authors:
   - family-names: Bargheet
     given-names: Ahmed
     orcid: "https://orcid.org/0000-0002-0363-0249"
-  date-published: 2025-11-XX
-  doi: 10.21105/joss.xxxxx
+  date-published: 2025-11-11
+  doi: 10.21105/joss.09286
   issn: 2475-9066
+  issue: 115
   journal: Journal of Open Source Software
   publisher:
     name: Open Journals
-  title: "AssumpSure: a user-friendly R Shiny package for automated validation of statistical assumptions and appropriate test selection"
+  start: 9286
+  title: "AssumpSure: a user‑friendly R Shiny package for automated
+    validation of statistical assumptions and appropriate test
+    selection"
   type: article
-  url: "https://joss.theoj.org/papers/10.21105/joss.xxxxx"
-title: "AssumpSure: a user-friendly R Shiny package for automated validation of statistical assumptions and appropriate test selection"
+  url: "https://joss.theoj.org/papers/10.21105/joss.09286"
+  volume: 10
+title: "AssumpSure: a user‑friendly R Shiny package for automated
+  validation of statistical assumptions and appropriate test selection"
