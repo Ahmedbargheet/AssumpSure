@@ -2,17 +2,7 @@
 
 [![](https://www.r-pkg.org/badges/version/AssumpSure?color=orange)](https://cran.r-project.org/package=AssumpSure) ![License: GPL-3](https://img.shields.io/badge/license-GPL--3-blue.svg) [![Project Status: Active - The project has reached a stable, usable state and is being actively developed.](https://www.repostatus.org/badges/latest/active.svg)](https://www.repostatus.org/#active) 
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.17539689.svg)](https://doi.org/10.5281/zenodo.17539689) 
-Markdown:
 [![DOI](https://joss.theoj.org/papers/10.21105/joss.09286/status.svg)](https://doi.org/10.21105/joss.09286)
-
-HTML:
-<a style="border-width:0" href="https://doi.org/10.21105/joss.09286">
-  <img src="https://joss.theoj.org/papers/10.21105/joss.09286/status.svg" alt="DOI badge" >
-</a>
-
-reStructuredText:
-.. image:: https://joss.theoj.org/papers/10.21105/joss.09286/status.svg
-   :target: https://doi.org/10.21105/joss.09286
 
 
 
