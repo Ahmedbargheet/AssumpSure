@@ -1027,7 +1027,7 @@ function corScreenshotWithoutScatterBtn() {
   p(
     HTML('<strong>Bargheet, A.</strong> (2025). 
         AssumpSure: a user-friendly R Shiny package for automated validation of statistical assumptions and appropriate test selection. 
-        <i>Journal of Open Source Software,</i> 10(115), 9286. 
+        <i>Journal of Open Source Software, 10</i>(115), 9286. 
         <a href="https://doi.org/10.21105/joss.09286" target="_blank">https://doi.org/10.21105/joss.09286</a>'),
     style = "color: #444; text-align: left; margin-top: 10px;"
   ),
