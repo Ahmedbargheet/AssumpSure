@@ -1213,6 +1213,12 @@ server <- function(input, output, session) {
                       title = "Note: Only continuous variables are displayed. Count or discrete variables are excluded because they violate the normality and homogeneity assumptions of t-tests and ANOVA. For count outcomes, please use the Poisson regression (under 'Regression Models tab')."
                     )),
                   choices = c("Choose" = "", numeric_vars)),
+      # Short visible message directly under the dropdown
+      tags$small(
+        style = "color:#b30000; font-weight:bold; margin-top:-10px; display:block;margin-bottom:20px;
+        font-size:13px;",
+        "Only continuous variables are listed; see tooltip for details."
+      ),
       selectInput("group_col", 
                   tagList(
                   "Select Group/Condition Column (categorical):",
@@ -2467,6 +2473,17 @@ output$levene_text <- renderUI({
       showNotification(strong("Shapiro–Wilk test needs 3-5000 values per group; groups outside this range cannot be tested."), type = "error", duration = 10, id = SHAPIRO_MSG_ID_ANOVA)
       return(NULL)
     }
+    
+    # 🔹 ADDED BLOCK: Prevent crash when a group has identical values
+    group_values <- split(df$value, df$group)
+    if (any(sapply(group_values, function(z) length(unique(z)) <= 1))) {
+      showNotification(
+        strong("Normality check skipped: at least one group has identical values, so the Shapiro–Wilk test cannot be performed."),
+        type = "error", duration = 10, id = SHAPIRO_MSG_ID_ANOVA
+      )
+      return(NULL)
+    }
+    
     df %>% dplyr::group_by(group) %>% rstatix::shapiro_test(value)
   }
 
@@ -2505,87 +2522,87 @@ output$levene_text <- renderUI({
   # --- Run Statistical Test ---
 
 ## Independent t-test
-#   run_independent_test <- function(df) {
-#     tryCatch({
-#       rstatix::t_test(df, value ~ group, paired = FALSE, detailed = TRUE) %>% 
-#         dplyr::mutate(method = "Independent t-test")
-#     }, error = function(e) data.frame(p = NA))
-#   }
-# 
+  run_independent_test <- function(df) {
+    tryCatch({
+      rstatix::t_test(df, value ~ group, paired = FALSE, detailed = TRUE) %>%
+        dplyr::mutate(method = "Independent t-test")
+    }, error = function(e) data.frame(p = NA))
+  }
+
 # ## Dependent t-test
-#   run_dependent_test <- function(df) {
-#     tryCatch({
-#       rstatix::t_test(df, value ~ group, paired = TRUE, detailed = TRUE) %>% 
-#         dplyr::mutate(method = "Paired t-test")
-#     }, error = function(e) data.frame(p = NA))
-#   }
+  run_dependent_test <- function(df) {
+    tryCatch({
+      rstatix::t_test(df, value ~ group, paired = TRUE, detailed = TRUE) %>%
+        dplyr::mutate(method = "Paired t-test")
+    }, error = function(e) data.frame(p = NA))
+  }
 
 # # Mann-Whitney U test
-# run_mannwhitney_test <- function(df) {
-#   # ngroups <- nlevels(df$group)
-#   # if (ngroups == 1) {
-#   #   showNotification(
-#   #     strong("Only one group detected. Mann–Whitney U test requires exactly two groups."),
-#   #     type = "error", duration = 9
-#   #   )
-#   #   return(data.frame(p = NA))
-#   # }
-# 
-#   # if (ngroups > 2) {
-#   #   showNotification(
-#   #     strong("More than two groups detected. Check ANOVA assumptions first; if assumptions are violated, AssumpSure will guide you."),
-#   #     type = "error", duration = 9,
-#   #   )
-#   #   return(data.frame(p = NA))
-#   # }
-#   tryCatch({
-#     rstatix::wilcox_test(df, value ~ group, paired = F, detailed = T) %>%
-#       dplyr::mutate(method = "Mann-Whitney")
-#   }, error = function(e) data.frame(p = NA))
-# }
- 
-   
+run_mannwhitney_test <- function(df) {
+  ngroups <- nlevels(df$group)
+  if (ngroups == 1) {
+    showNotification(
+      strong("Only one group detected. Mann–Whitney U test requires exactly two groups."),
+      type = "error", duration = 9
+    )
+    return(data.frame(p = NA))
+  }
 
-#   ## Mann-Whitney U test
-#   run_mannwhitney_test <- function(df) {
-#     ngroups <- nlevels(df$group)
-#     if (ngroups != 2) return(data.frame(p = NA))
-#     
-#     tryCatch({
-#       rstatix::wilcox_test(df, value ~ group, paired = FALSE, detailed = TRUE) %>%
-#         dplyr::mutate(method = "Mann–Whitney")
-#     }, error = function(e) data.frame(p = NA))
-#   }
-#   
-#   
-# ## Wilcoxon signed-rank test
-# run_wilcoxon_signed_test <- function(df) {
-#   ngroups <- nlevels(df$group)
-#   if (ngroups != 2) return(data.frame(p = NA))
-# 
-#   group_sizes <- table(df$group)
-#   if (length(unique(group_sizes)) != 1) return(data.frame(p = NA))
-# 
-#   tryCatch({
-#     rstatix::wilcox_test(df, value ~ group, paired = TRUE, detailed = TRUE) %>% 
-#       dplyr::mutate(method = "Mann-Whitney")
-#   }, error = function(e) data.frame(p = NA))
-# }
-#   
-# 
-# ## One-way ANOVA
-#   run_anova_test <- function(df) {
-#     tryCatch({
-#       rstatix::anova_test(df, value ~ group, white.adjust = T)
-#     }, error = function(e) data.frame(p = NA))
-#   }
-# 
-# ## Kruskal–Wallis Test
-#   run_kruskal_test <- function(df) {
-#     tryCatch({
-#       rstatix::kruskal_test(df, value ~ group)
-#     }, error = function(e) data.frame(p = NA))
-#   }
+  if (ngroups > 2) {
+    showNotification(
+      strong("More than two groups detected. Check ANOVA assumptions first; if assumptions are violated, AssumpSure will guide you."),
+      type = "error", duration = 9,
+    )
+    return(data.frame(p = NA))
+  }
+  tryCatch({
+    rstatix::wilcox_test(df, value ~ group, paired = F, detailed = T) %>%
+      dplyr::mutate(method = "Mann-Whitney")
+  }, error = function(e) data.frame(p = NA))
+}
+
+
+
+  ## Mann-Whitney U test
+  run_mannwhitney_test <- function(df) {
+    ngroups <- nlevels(df$group)
+    if (ngroups != 2) return(data.frame(p = NA))
+
+    tryCatch({
+      rstatix::wilcox_test(df, value ~ group, paired = FALSE, detailed = TRUE) %>%
+        dplyr::mutate(method = "Mann–Whitney")
+    }, error = function(e) data.frame(p = NA))
+  }
+
+
+## Wilcoxon signed-rank test
+run_wilcoxon_signed_test <- function(df) {
+  ngroups <- nlevels(df$group)
+  if (ngroups != 2) return(data.frame(p = NA))
+
+  group_sizes <- table(df$group)
+  if (length(unique(group_sizes)) != 1) return(data.frame(p = NA))
+
+  tryCatch({
+    rstatix::wilcox_test(df, value ~ group, paired = TRUE, detailed = TRUE) %>%
+      dplyr::mutate(method = "Mann-Whitney")
+  }, error = function(e) data.frame(p = NA))
+}
+
+
+## One-way ANOVA
+  run_anova_test <- function(df) {
+    tryCatch({
+      rstatix::anova_test(df, value ~ group, white.adjust = T)
+    }, error = function(e) data.frame(p = NA))
+  }
+
+## Kruskal–Wallis Test
+  run_kruskal_test <- function(df) {
+    tryCatch({
+      rstatix::kruskal_test(df, value ~ group)
+    }, error = function(e) data.frame(p = NA))
+  }
   
   ## Welch's t-test test
   run_welch_test <- function(df) {
@@ -4149,31 +4166,31 @@ output$boxplot_ui <- renderUI({
 
 
 
-    # stat_square_chisq <- function(df) {
-    #   res <- run_chisq_test(df)
-    #   pval <- res$p[1]
-    #   if (is.na(pval)) return(NULL)
-    #   div(
-    #     style = paste0(
-    #       "background-color: ", if (pval < 0.05) "green" else "#B20D00",
-    #       "; color: white; padding: 10px; border-radius: 5px; margin-top: 10px;"
-    #     ),
-    #     strong(if (pval < 0.05) "Statistically Significant Difference" else "No Statistically Significant Difference")
-    #   )
-    # }
+    stat_square_chisq <- function(df) {
+      res <- run_chisq_test(df)
+      pval <- res$p[1]
+      if (is.na(pval)) return(NULL)
+      div(
+        style = paste0(
+          "background-color: ", if (pval < 0.05) "green" else "#B20D00",
+          "; color: white; padding: 10px; border-radius: 5px; margin-top: 10px;"
+        ),
+        strong(if (pval < 0.05) "Statistically Significant Difference" else "No Statistically Significant Difference")
+      )
+    }
 
-    # stat_square_fisher <- function(df) {
-    #   res <- run_fisher_test(df)
-    #   pval <- res$p[1]
-    #   if (is.na(pval)) return(NULL)
-    #   div(
-    #     style = paste0(
-    #       "background-color: ", if (pval < 0.05) "green" else "#B20D00",
-    #       "; color: white; padding: 10px; border-radius: 5px; margin-top: 10px;"
-    #     ),
-    #     strong(if (pval < 0.05) "Statistically Significant Difference" else "No Statistically Significant Difference")
-    #   )
-    # }
+    stat_square_fisher <- function(df) {
+      res <- run_fisher_test(df)
+      pval <- res$p[1]
+      if (is.na(pval)) return(NULL)
+      div(
+        style = paste0(
+          "background-color: ", if (pval < 0.05) "green" else "#B20D00",
+          "; color: white; padding: 10px; border-radius: 5px; margin-top: 10px;"
+        ),
+        strong(if (pval < 0.05) "Statistically Significant Difference" else "No Statistically Significant Difference")
+      )
+    }
 
 
     # Handle post hoc
@@ -4548,13 +4565,13 @@ output$boxplot_ui <- renderUI({
   last_feature_count <- reactiveVal(NULL)
   
   # --- PATCH 0:  ---
-  # is_singular_matrix <- function(S, tol = .Machine$double.eps^0.5) {
-  #   if (!is.matrix(S)) return(TRUE)
-  #   if (any(!is.finite(S))) return(TRUE)
-  #   r <- qr(S)$rank
-  #   p <- ncol(S)
-  #   (r < p) || any(is.na(S)) || (min(abs(eigen(S, symmetric = TRUE, only.values = TRUE)$values)) < tol)
-  # }
+  is_singular_matrix <- function(S, tol = .Machine$double.eps^0.5) {
+    if (!is.matrix(S)) return(TRUE)
+    if (any(!is.finite(S))) return(TRUE)
+    r <- qr(S)$rank
+    p <- ncol(S)
+    (r < p) || any(is.na(S)) || (min(abs(eigen(S, symmetric = TRUE, only.values = TRUE)$values)) < tol)
+  }
   
   
 
@@ -4574,9 +4591,9 @@ output$boxplot_ui <- renderUI({
 
 # Data Loading & Numeric Feature Detection
 
-  # safe_shapiro_pval <- function(x) {
-  #   !is.null(x) && !is.null(x$p.value) && is.numeric(x$p.value) && !is.na(x$p.value)
-  # }
+  safe_shapiro_pval <- function(x) {
+    !is.null(x) && !is.null(x$p.value) && is.numeric(x$p.value) && !is.na(x$p.value)
+  }
 
   # Automatically switch to “Test Results” tab when Run is clicked
   observeEvent(input$cor_run, {
@@ -5354,19 +5371,19 @@ output$boxplot_ui <- renderUI({
   })
 
 
-  # make_scatter_plot <- function(v1, v2, var1_name, var2_name) {
-  #   ggplot2::ggplot(data.frame(x = v1, y = v2), aes(x, y)) +
-  #     geom_point(size = 2, color = "#4B96CB") +
-  #     geom_smooth(method = "lm", se = FALSE, color = "#F57B13", linetype = 5, linewidth = 1) +
-  #     theme_bw() +
-  #     labs(title = "Scatterplot with Regression Line",
-  #          x = var1_name, y = var2_name) + 
-  #     theme(axis.text.x = element_text(size = 12, colour = "black")) + 
-  #     theme(axis.title.x = element_text(size = 14, colour = "black", face = "bold")) + 
-  #     theme(axis.text.y = element_text(size = 12, colour = "black")) + 
-  #     theme(axis.title.y = element_text(size = 14, colour = "black", face = "bold")) + 
-  #     theme(plot.title = element_text(size = 17))
-  # }
+  make_scatter_plot <- function(v1, v2, var1_name, var2_name) {
+    ggplot2::ggplot(data.frame(x = v1, y = v2), aes(x, y)) +
+      geom_point(size = 2, color = "#4B96CB") +
+      geom_smooth(method = "lm", se = FALSE, color = "#F57B13", linetype = 5, linewidth = 1) +
+      theme_bw() +
+      labs(title = "Scatterplot with Regression Line",
+           x = var1_name, y = var2_name) +
+      theme(axis.text.x = element_text(size = 12, colour = "black")) +
+      theme(axis.title.x = element_text(size = 14, colour = "black", face = "bold")) +
+      theme(axis.text.y = element_text(size = 12, colour = "black")) +
+      theme(axis.title.y = element_text(size = 14, colour = "black", face = "bold")) +
+      theme(plot.title = element_text(size = 17))
+  }
 
  # Download the Scatter plot
   output$cor_download_plot <- downloadHandler(
@@ -6214,6 +6231,11 @@ output$cor_matrix_download_ui <- renderUI({
                       )),
                     choices = c("Select variable" = "", num_vars),
                     selected = ""),
+        # The message goes *right here*, directly after the dropdown
+        tags$small(
+          style = "color:#b30000; font-weight:bold; margin-top:-10px; display:block; margin-bottom:15px; font-size:13px;",
+          "Only continuous variables are listed; see tooltip for details."
+        )
       )
     })
 
@@ -6809,6 +6831,11 @@ lmm_vars <- reactive({
                         title = "Note: Only continuous variables are shown. Count or discrete variables are excluded, as they violate model assumptions. For count outcomes, please use the Poisson regression option."
                       )),
                     choices = c("Select variable" = "", num_vars), selected = ""),
+        # The message goes *right here*, directly after the dropdown
+        tags$small(
+          style = "color:#b30000; font-weight:bold; margin-top:-10px; display:block; margin-bottom:15px; font-size:13px;",
+          "Only continuous variables are listed; see tooltip for details."
+        )
       )
     })
 
