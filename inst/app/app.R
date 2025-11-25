@@ -2478,7 +2478,7 @@ output$levene_text <- renderUI({
     group_values <- split(df$value, df$group)
     if (any(sapply(group_values, function(z) length(unique(z)) <= 1))) {
       showNotification(
-        strong("Normality check skipped: at least one group has no variation in values, so the Shapiro–Wilk test cannot be performed. Choose another grouping variable or remove groups with identical values."),
+        strong("Normality check skipped: at least one group has no variation in values, so the Shapiro-Wilk test cannot be performed. Choose another grouping variable or remove groups with identical values."),
         type = "error", duration = 10, id = SHAPIRO_MSG_ID_ANOVA
       )
       return(NULL)
