@@ -10,7 +10,7 @@
 launch_app <- function() {
   # --- version check (optional but user-friendly) ---
   current <- utils::packageVersion("AssumpSure")
-  latest <- "1.1.3" # update this when you release a new version
+  latest <- "1.1.4" # update this when you release a new version
   if (current < latest) {
     packageStartupMessage(
       sprintf(

@@ -1,6 +1,6 @@
 .onAttach <- function(libname, pkgname) {
   current <- utils::packageVersion("AssumpSure")
-  latest <- "1.1.3" # hard-code my current CRAN release
+  latest <- "1.1.4" # hard-code my current CRAN release
 
   if (current < latest) {
     packageStartupMessage(
